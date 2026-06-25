@@ -5,6 +5,7 @@ from notion_client import Client
 
 from .collector import collect_jobs
 from .config import load_profile
+from .dedup import fetch_existing_urls, filter_new_jobs
 from .scorer import score_jobs
 
 
@@ -17,7 +18,11 @@ def main() -> None:
     jobs = collect_jobs(profile)
     print(f"Coletadas: {len(jobs)} vagas")
 
-    scored = score_jobs(jobs, profile)
+    existing_urls = fetch_existing_urls(client, os.environ["NOTION_VAGAS_DATABASE_ID"])
+    new_jobs = filter_new_jobs(jobs, existing_urls)
+    print(f"Novas: {len(new_jobs)} (descartadas {len(jobs) - len(new_jobs)} duplicatas)")
+
+    scored = score_jobs(new_jobs, profile)
     print(f"Aprovadas: {len(scored)} acima do threshold {profile.score_threshold}\n")
 
     for s in scored:
