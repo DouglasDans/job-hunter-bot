@@ -87,3 +87,21 @@ def test_score_jobs_filters_nones_and_sorts():
 
 def test_score_jobs_empty_input():
     assert score_jobs([], PROFILE) == []
+
+
+def test_is_remote_false_vetoes():
+    result = score_job(make_job("React TypeScript", title="React Dev"), PROFILE)
+    assert result is not None
+    presencial = make_job("React TypeScript")
+    presencial = presencial.model_copy(update={"is_remote": False})
+    assert score_job(presencial, PROFILE) is None
+
+
+def test_is_remote_none_passes():
+    job = make_job("React TypeScript").model_copy(update={"is_remote": None})
+    assert score_job(job, PROFILE) is not None
+
+
+def test_is_remote_true_passes():
+    job = make_job("React TypeScript").model_copy(update={"is_remote": True})
+    assert score_job(job, PROFILE) is not None

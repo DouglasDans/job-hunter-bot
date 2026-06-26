@@ -2,6 +2,9 @@ from .models import Job, Profile, ScoredJob
 
 
 def score_job(job: Job, profile: Profile) -> ScoredJob | None:
+    if job.is_remote is False:
+        return None
+
     text = f"{job.title} {job.description}".lower()
 
     for dealbreaker in profile.dealbreakers:
