@@ -49,19 +49,26 @@ def _row_to_job(row: pd.Series) -> Job | None:
 def collect_jobs(profile: Profile) -> list[Job]:
     if not profile.keywords:
         return []
-    df = scrape_jobs(
-        site_name=["indeed", "linkedin"],
-        search_term=profile.keywords[0],
-        location=profile.location,
-        country_indeed="brazil",
-        hours_old=profile.hours_old,
-        results_wanted=20,
-        description_format="markdown",
-        linkedin_fetch_description=True,
-    )
-    jobs = []
-    for _, row in df.iterrows():
-        job = _row_to_job(row)
-        if job is not None:
+
+    seen: set[str] = set()
+    jobs: list[Job] = []
+
+    for keyword in profile.keywords:
+        df = scrape_jobs(
+            site_name=["indeed", "linkedin"],
+            search_term=keyword,
+            location=profile.location,
+            country_indeed="brazil",
+            hours_old=profile.hours_old,
+            results_wanted=20,
+            description_format="markdown",
+            linkedin_fetch_description=True,
+        )
+        for _, row in df.iterrows():
+            job = _row_to_job(row)
+            if job is None or job.url in seen:
+                continue
+            seen.add(job.url)
             jobs.append(job)
+
     return jobs

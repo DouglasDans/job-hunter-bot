@@ -17,7 +17,8 @@ def main() -> None:
     client = Client(auth=os.environ["NOTION_TOKEN"])
     profile = load_profile(client, os.environ["NOTION_PROFILE_DATABASE_ID"])
 
-    print(f"Buscando: '{profile.keywords[0]}' em {profile.location} (últimas {profile.hours_old}h)")
+    n, loc, h = len(profile.keywords), profile.location, profile.hours_old
+    print(f"Buscando {n} keywords em {loc} (últimas {h}h)")
     jobs = collect_jobs(profile)
     print(f"Coletadas: {len(jobs)} vagas")
 

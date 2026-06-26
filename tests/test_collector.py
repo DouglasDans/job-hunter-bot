@@ -1,9 +1,11 @@
 import math
+from unittest.mock import call, patch
 
 import pandas as pd
 import pytest
 
-from src.collector import _row_to_job
+from src.collector import _row_to_job, collect_jobs
+from src.models import Profile
 
 
 def make_row(**kwargs) -> pd.Series:
@@ -66,3 +68,51 @@ def test_salary_fields_mapped():
     assert job is not None
     assert job.salary_min == 5000.0
     assert job.salary_max == 8000.0
+
+
+_PROFILE = Profile(
+    keywords=["React developer", "frontend engineer"],
+    location="Brazil",
+    required_stack=["React"],
+    bonus_stack=[],
+    seniority="Pleno",
+    modality="Remoto",
+    dealbreakers=[],
+    score_threshold=4.0,
+    hours_old=168,
+)
+
+
+def _make_df(*urls: str) -> pd.DataFrame:
+    rows = [make_row(job_url=url, title=f"Job {url}") for url in urls]
+    return pd.DataFrame([r.to_dict() for r in rows])
+
+
+def test_collect_jobs_calls_scrape_for_each_keyword():
+    df1 = _make_df("https://example.com/1")
+    df2 = _make_df("https://example.com/2")
+    with patch("src.collector.scrape_jobs", side_effect=[df1, df2]) as mock_scrape:
+        jobs = collect_jobs(_PROFILE)
+    assert mock_scrape.call_count == 2
+    assert mock_scrape.call_args_list[0][1]["search_term"] == "React developer"
+    assert mock_scrape.call_args_list[1][1]["search_term"] == "frontend engineer"
+    assert len(jobs) == 2
+
+
+def test_collect_jobs_deduplicates_across_keywords():
+    shared_url = "https://example.com/shared"
+    df1 = _make_df(shared_url)
+    df2 = _make_df(shared_url, "https://example.com/unique")
+    with patch("src.collector.scrape_jobs", side_effect=[df1, df2]):
+        jobs = collect_jobs(_PROFILE)
+    urls = [j.url for j in jobs]
+    assert urls.count(shared_url) == 1
+    assert len(jobs) == 2
+
+
+def test_collect_jobs_empty_keywords_returns_empty():
+    profile = _PROFILE.model_copy(update={"keywords": []})
+    with patch("src.collector.scrape_jobs") as mock_scrape:
+        jobs = collect_jobs(profile)
+    mock_scrape.assert_not_called()
+    assert jobs == []
