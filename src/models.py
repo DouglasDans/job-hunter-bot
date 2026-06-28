@@ -42,12 +42,5 @@ class EnrichedJob(BaseModel):
     score: float
     required_hits: list[str]
     bonus_hits: list[str]
-    plano_de_acao: str
-    o_que_estudar: str
-    sinais_de_cultura: str
-    red_flags: str
-    perguntas_provaveis: str
-    resumo_empresa: str
-    analise_empresa: str
-    fit_cultural: str
+    body_markdown: str
     match_score: float

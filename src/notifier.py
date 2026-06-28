@@ -15,17 +15,6 @@ _SOURCE_MAP = {
     "gupy": "Gupy",
 }
 
-_SECTIONS = [
-    ("Plano de Ação", "plano_de_acao"),
-    ("O que Estudar", "o_que_estudar"),
-    ("Sinais de Cultura", "sinais_de_cultura"),
-    ("Red Flags", "red_flags"),
-    ("Perguntas Prováveis", "perguntas_provaveis"),
-    ("Resumo da Empresa", "resumo_empresa"),
-    ("Análise da Empresa", "analise_empresa"),
-    ("Fit Cultural", "fit_cultural"),
-]
-
 
 def _rich_text(content: str) -> dict:
     return {"rich_text": [{"type": "text", "text": {"content": content[:_MAX_TEXT]}}]}
@@ -136,16 +125,7 @@ def build_properties(enriched: EnrichedJob) -> dict:
 
 
 def build_blocks(enriched: EnrichedJob) -> list[dict]:
-    blocks: list[dict] = []
-    for i, (label, field) in enumerate(_SECTIONS):
-        if i > 0:
-            blocks.append({"object": "block", "type": "divider", "divider": {}})
-        blocks.append({
-            "object": "block", "type": "heading_2",
-            "heading_2": {"rich_text": [{"type": "text", "text": {"content": label}}]},
-        })
-        blocks.extend(_text_to_blocks(getattr(enriched, field)))
-    return blocks
+    return _text_to_blocks(enriched.body_markdown)
 
 
 def push_job(client: Client, database_id: str, enriched: EnrichedJob) -> None:

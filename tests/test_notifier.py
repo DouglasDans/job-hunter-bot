@@ -1,7 +1,5 @@
 from datetime import date
 
-import pytest
-
 from src.models import EnrichedJob, Job
 from src.notifier import _parse_inline, _text_to_blocks, build_blocks, build_properties, push_job
 
@@ -24,14 +22,24 @@ _BASE_ENRICHED = EnrichedJob(
     score=8.5,
     required_hits=["React", "TypeScript"],
     bonus_hits=["Docker"],
-    plano_de_acao="Prepare portfolio.",
-    o_que_estudar="Review advanced TypeScript.",
-    sinais_de_cultura="Remote-first culture.",
-    red_flags="No salary disclosed.",
-    perguntas_provaveis="Explain React hooks.",
-    resumo_empresa="Acme is a B2B SaaS company.",
-    analise_empresa="Acme was founded in 2010, 500 employees, B2B SaaS.",
-    fit_cultural="Strong remote culture, horizontal structure, good fit.",
+    body_markdown=(
+        "## Plano de Ação\n"
+        "Prepare portfolio.\n\n"
+        "## O que Estudar\n"
+        "Review advanced TypeScript.\n\n"
+        "## Sinais de Cultura\n"
+        "Remote-first culture.\n\n"
+        "## Red Flags\n"
+        "No salary disclosed.\n\n"
+        "## Perguntas Prováveis\n"
+        "Explain React hooks.\n\n"
+        "## Resumo da Empresa\n"
+        "Acme is a B2B SaaS company.\n\n"
+        "## Análise da Empresa\n"
+        "Acme was founded in 2010, 500 employees, B2B SaaS.\n\n"
+        "## Fit Cultural\n"
+        "Strong remote culture, horizontal structure, good fit."
+    ),
     match_score=8.5,
 )
 
@@ -264,7 +272,7 @@ def test_build_blocks_contains_enrichment_content():
 
 def test_build_blocks_truncates_long_text():
     long_text = "x" * 3000
-    enriched = _BASE_ENRICHED.model_copy(update={"plano_de_acao": long_text})
+    enriched = _BASE_ENRICHED.model_copy(update={"body_markdown": long_text})
     blocks = build_blocks(enriched)
     paragraphs = [b for b in blocks if b["type"] == "paragraph"]
     for p in paragraphs:

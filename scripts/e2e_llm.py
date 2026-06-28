@@ -90,7 +90,7 @@ def main() -> None:
     llm = create_llm_client()
     enriched = enrich_job(FAKE_SCORED, profile, llm, company_context=company_context)
     print(f"match_score={enriched.match_score}")
-    print(f"fit_cultural={enriched.fit_cultural[:100]}...\n")
+    print(f"body_markdown={len(enriched.body_markdown)} chars\n")
 
     print("Subindo no Notion...")
     push_job(notion, vagas_db_id, enriched)

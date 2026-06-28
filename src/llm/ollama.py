@@ -9,7 +9,7 @@ class OllamaClient(LLMClient):
         self.model = model
         self.base_url = base_url.rstrip("/")
 
-    def complete(self, system: str, user: str, response_schema: dict | None = None) -> str:
+    def complete(self, system: str, user: str) -> str:
         payload = json.dumps({
             "model": self.model,
             "messages": [
@@ -17,7 +17,6 @@ class OllamaClient(LLMClient):
                 {"role": "user", "content": user},
             ],
             "stream": False,
-            "format": response_schema if response_schema is not None else "json",
         }).encode()
 
         req = urllib.request.Request(
