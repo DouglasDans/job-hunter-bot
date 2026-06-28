@@ -145,7 +145,7 @@ Database com uma única linha (o perfil). Propriedades:
 | Data da vaga | Date | |
 | Salário | Text | |
 
-Corpo da página: 8 seções geradas pelo LLM em Markdown, convertidas para blocos Notion tipados.
+Corpo da página: 8 seções geradas pelo LLM em Markdown, convertidas para blocos Notion tipados. Emojis por convenção: ✅ em Sinais de Cultura, 🚩 para red flags críticos, 🟠 para red flags secundários.
 
 ## LLM — configuração
 
@@ -166,10 +166,10 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 | Campo | Descrição |
 |---|---|
-| Plano de Ação | Passos concretos e personalizados baseados no perfil do candidato |
+| Plano de Ação | Passos concretos e personalizados baseados no perfil do candidato; quando há bom fit, inclui abordagem direta no LinkedIn (quem contatar + exemplo de mensagem) |
 | O que Estudar | Lacunas específicas na stack antes de aplicar |
-| Sinais de Cultura | Evidências positivas de cultura e ambiente de trabalho |
-| Red Flags | Alertas e aspectos negativos identificados |
+| Sinais de Cultura | Evidências positivas de cultura e ambiente de trabalho (✅ por item) |
+| Red Flags | Alertas e aspectos negativos identificados (🚩 críticos, 🟠 secundários) |
 | Perguntas Prováveis | Perguntas técnicas e comportamentais esperadas na entrevista |
 | Resumo da Empresa | Contexto sobre produto e mercado |
 | Análise da Empresa | Histórico, reputação e benefícios com base em dados externos |

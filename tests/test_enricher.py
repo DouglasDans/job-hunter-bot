@@ -56,15 +56,18 @@ match_score: 8.5
 
 ## Plano de Ação
 Prepare portfolio with React projects.
+- **Abordagem direta:** Contact tech lead on LinkedIn: "Saw your Frontend role at Acme."
 
 ## O que Estudar
 Review TypeScript advanced types.
 
 ## Sinais de Cultura
-Mentions remote work.
+✅ Mentions remote work.
+✅ Flexible hours.
 
 ## Red Flags
-No salary range disclosed.
+🚩 No salary range disclosed.
+🟠 No information about team size.
 
 ## Perguntas Prováveis
 Explain React hooks lifecycle.
@@ -161,3 +164,16 @@ def test_enrich_job_returns_enriched_job():
     assert isinstance(result, EnrichedJob)
     assert result.required_hits == ["React", "TypeScript"]
     assert result.match_score == 8.5
+
+
+def test_build_system_prompt_mentions_linkedin_outreach():
+    prompt = build_system_prompt(PROFILE)
+    assert "LinkedIn" in prompt
+    assert "mensagem" in prompt
+
+
+def test_build_system_prompt_uses_emoji_conventions():
+    prompt = build_system_prompt(PROFILE)
+    assert "✅" in prompt
+    assert "🚩" in prompt
+    assert "🟠" in prompt
