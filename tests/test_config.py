@@ -1,5 +1,5 @@
 import pytest
-from src.config import parse_profile
+from src.config import _blocks_to_text, parse_profile
 
 SAMPLE_PAGE = {
     "properties": {
@@ -68,3 +68,63 @@ def test_missing_select_returns_empty_string():
     page = _with({"seniority": {"select": None}})
     profile = parse_profile(page)
     assert profile.seniority == ""
+
+
+def test_parse_profile_about_me_defaults_empty():
+    profile = parse_profile(SAMPLE_PAGE)
+    assert profile.about_me == ""
+
+
+def test_parse_profile_accepts_about_me():
+    profile = parse_profile(SAMPLE_PAGE, about_me="Senior frontend dev com 4 anos de experiência.")
+    assert profile.about_me == "Senior frontend dev com 4 anos de experiência."
+
+
+def test_blocks_to_text_extracts_paragraphs():
+    response = {
+        "results": [
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Hello world"}]}},
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Second paragraph"}]}},
+        ]
+    }
+    text = _blocks_to_text(response)
+    assert "Hello world" in text
+    assert "Second paragraph" in text
+
+
+def test_blocks_to_text_ignores_empty_rich_text():
+    response = {
+        "results": [
+            {"type": "paragraph", "paragraph": {"rich_text": []}},
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Real content"}]}},
+        ]
+    }
+    text = _blocks_to_text(response)
+    assert text == "Real content"
+
+
+def test_blocks_to_text_ignores_non_text_blocks():
+    response = {
+        "results": [
+            {"type": "image", "image": {}},
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Text block"}]}},
+        ]
+    }
+    text = _blocks_to_text(response)
+    assert text == "Text block"
+
+
+def test_blocks_to_text_handles_headings():
+    response = {
+        "results": [
+            {"type": "heading_2", "heading_2": {"rich_text": [{"plain_text": "My heading"}]}},
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "Under heading"}]}},
+        ]
+    }
+    text = _blocks_to_text(response)
+    assert "My heading" in text
+    assert "Under heading" in text
+
+
+def test_blocks_to_text_empty_response():
+    assert _blocks_to_text({"results": []}) == ""

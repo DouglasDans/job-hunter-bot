@@ -13,6 +13,7 @@ class Profile(BaseModel):
     dealbreakers: list[str]
     score_threshold: float = Field(default=6.0)
     hours_old: int = Field(default=24)
+    about_me: str = ""
 
 
 class Job(BaseModel):
@@ -47,3 +48,6 @@ class EnrichedJob(BaseModel):
     red_flags: str
     perguntas_provaveis: str
     resumo_empresa: str
+    analise_empresa: str
+    fit_cultural: str
+    match_score: float
