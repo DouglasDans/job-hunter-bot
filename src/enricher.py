@@ -18,8 +18,8 @@ def build_system_prompt(profile: Profile) -> str:
         ]
     lines += [
         "Resumo técnico:",
-        f"- Senioridade: {profile.seniority}",
-        f"- Modalidade preferida: {profile.modality}",
+        f"- Senioridade: {', '.join(profile.seniority)}",
+        f"- Modalidade preferida: {', '.join(profile.modality)}",
         f"- Stack principal: {', '.join(profile.required_stack)}",
         f"- Stack bônus: {', '.join(profile.bonus_stack)}",
         f"- Dealbreakers: {', '.join(profile.dealbreakers)}",

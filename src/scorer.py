@@ -1,8 +1,21 @@
 from .models import Job, Profile, ScoredJob
 
+_SENIOR_TITLE_TERMS = {"senior", "sênior", "sr."}
+_SENIOR_JOB_LEVELS = {"senior"}
+
+
+def _is_senior_job(job: Job) -> bool:
+    title_words = job.title.lower().split()
+    if any(term in title_words for term in _SENIOR_TITLE_TERMS):
+        return True
+    return job.job_level is not None and job.job_level.lower() in _SENIOR_JOB_LEVELS
+
 
 def score_job(job: Job, profile: Profile) -> ScoredJob | None:
     if job.is_remote is False:
+        return None
+
+    if profile.seniority and "Senior" not in profile.seniority and _is_senior_job(job):
         return None
 
     text = f"{job.title} {job.description}".lower()

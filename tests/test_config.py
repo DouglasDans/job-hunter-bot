@@ -7,8 +7,8 @@ SAMPLE_PAGE = {
         "location": {"rich_text": [{"plain_text": "Brazil"}]},
         "required_stack": {"multi_select": [{"name": "React"}, {"name": "TypeScript"}]},
         "bonus_stack": {"multi_select": [{"name": "PostgreSQL"}, {"name": "Docker"}]},
-        "seniority": {"select": {"name": "Pleno"}},
-        "modality": {"select": {"name": "Remoto"}},
+        "seniority": {"multi_select": [{"name": "Pleno"}, {"name": "Junior"}]},
+        "modality": {"multi_select": [{"name": "Remoto"}, {"name": "Híbrido"}]},
         "dealbreakers": {"rich_text": [{"plain_text": "PHP, Delphi"}]},
         "score_threshold": {"number": 6.0},
         "hours_old": {"number": 24},
@@ -26,8 +26,8 @@ def test_parse_full_profile():
     assert profile.location == "Brazil"
     assert profile.required_stack == ["React", "TypeScript"]
     assert profile.bonus_stack == ["PostgreSQL", "Docker"]
-    assert profile.seniority == "Pleno"
-    assert profile.modality == "Remoto"
+    assert profile.seniority == ["Pleno", "Junior"]
+    assert profile.modality == ["Remoto", "Híbrido"]
     assert profile.dealbreakers == ["PHP", "Delphi"]
     assert profile.score_threshold == 6.0
     assert profile.hours_old == 24
@@ -64,10 +64,10 @@ def test_null_hours_old_uses_default():
     assert profile.hours_old == 24
 
 
-def test_missing_select_returns_empty_string():
-    page = _with({"seniority": {"select": None}})
+def test_missing_multi_select_returns_empty_list():
+    page = _with({"seniority": {"multi_select": []}})
     profile = parse_profile(page)
-    assert profile.seniority == ""
+    assert profile.seniority == []
 
 
 def test_parse_profile_about_me_defaults_empty():

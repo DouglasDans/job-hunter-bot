@@ -7,8 +7,8 @@ PROFILE = Profile(
     location="Brazil",
     required_stack=["React", "TypeScript"],
     bonus_stack=["PostgreSQL", "Docker"],
-    seniority="Pleno",
-    modality="Remoto",
+    seniority=["Pleno", "Junior"],
+    modality=["Remoto", "Híbrido"],
     dealbreakers=["PHP", "Delphi"],
     score_threshold=5.0,
     hours_old=24,
@@ -104,4 +104,40 @@ def test_is_remote_none_passes():
 
 def test_is_remote_true_passes():
     job = make_job("React TypeScript").model_copy(update={"is_remote": True})
+    assert score_job(job, PROFILE) is not None
+
+
+def test_senior_title_vetoed_when_not_in_seniority():
+    job = make_job("React TypeScript", title="Senior React Developer")
+    assert score_job(job, PROFILE) is None
+
+
+def test_senior_with_accent_vetoed():
+    job = make_job("React TypeScript", title="Desenvolvedor React Sênior")
+    assert score_job(job, PROFILE) is None
+
+
+def test_senior_job_level_vetoed():
+    job = make_job("React TypeScript").model_copy(update={"job_level": "senior"})
+    assert score_job(job, PROFILE) is None
+
+
+def test_senior_passes_when_senior_in_profile():
+    job = make_job("React TypeScript", title="Senior React Developer")
+    assert score_job(job, PROFILE.model_copy(update={"seniority": ["Senior", "Pleno"]})) is not None
+
+
+def test_senior_passes_when_seniority_empty():
+    profile = PROFILE.model_copy(update={"seniority": []})
+    job = make_job("React TypeScript", title="Senior React Developer")
+    assert score_job(job, profile) is not None
+
+
+def test_non_senior_title_not_vetoed():
+    job = make_job("React TypeScript", title="Fullstack Software Engineer Pleno")
+    assert score_job(job, PROFILE) is not None
+
+
+def test_mid_senior_job_level_not_vetoed():
+    job = make_job("React TypeScript").model_copy(update={"job_level": "mid-senior level"})
     assert score_job(job, PROFILE) is not None
