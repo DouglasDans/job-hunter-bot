@@ -4,17 +4,22 @@ from .client import LLMClient
 
 
 def create_llm_client() -> LLMClient:
-    provider = os.getenv("LLM_PROVIDER", "ollama")
-    model = os.getenv("LLM_MODEL", "qwen2.5:7b")
-    if provider == "ollama":
-        from .ollama import OllamaClient
+    from .ollama import OllamaClient
 
-        return OllamaClient(
-            model=model,
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        )
-    if provider == "anthropic":
+    ollama = OllamaClient(
+        model=os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+    )
+
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if anthropic_key:
         from .anthropic import AnthropicClient
+        from .fallback import FallbackClient
 
-        return AnthropicClient(model=model, api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
+        anthropic = AnthropicClient(
+            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+            api_key=anthropic_key,
+        )
+        return FallbackClient(primary=anthropic, fallback=ollama)
+
+    return ollama
