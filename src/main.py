@@ -9,6 +9,7 @@ from .dedup import fetch_existing_urls, filter_new_jobs
 from .enricher import enrich_job
 from .llm import create_llm_client
 from .notifier import push_job
+from .researcher import research_company
 from .scorer import score_jobs
 
 
@@ -37,7 +38,8 @@ def main() -> None:
         print(f"  [{s.score:4.1f}] {s.job.title} @ {s.job.company} ({s.job.source})")
         print(f"         {', '.join(stack)}")
         try:
-            enriched = enrich_job(s, profile, llm)
+            company_context = research_company(s.job.company)
+            enriched = enrich_job(s, profile, llm, company_context=company_context)
         except Exception as e:
             print(f"         [ERR] enriquecimento falhou: {e}")
             continue

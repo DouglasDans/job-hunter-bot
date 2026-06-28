@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from src.models import EnrichedJob, Job
-from src.notifier import build_blocks, build_properties, push_job
+from src.notifier import _parse_inline, _text_to_blocks, build_blocks, build_properties, push_job
 
 _BASE_JOB = Job(
     title="Frontend Engineer",
@@ -30,17 +30,113 @@ _BASE_ENRICHED = EnrichedJob(
     red_flags="No salary disclosed.",
     perguntas_provaveis="Explain React hooks.",
     resumo_empresa="Acme is a B2B SaaS company.",
+    analise_empresa="Acme was founded in 2010, 500 employees, B2B SaaS.",
+    fit_cultural="Strong remote culture, horizontal structure, good fit.",
+    match_score=8.5,
 )
+
+
+class _StubChildren:
+    def __init__(self):
+        self.appended: list[list] = []
+
+    def append(self, block_id: str, children: list) -> None:
+        self.appended.append(children)
+
+
+class _StubBlocks:
+    def __init__(self):
+        self.children = _StubChildren()
 
 
 class _StubNotionClient:
     def __init__(self):
         self.calls: list[dict] = []
         self.pages = self
+        self.blocks = _StubBlocks()
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
         return {"id": "fake-page-id"}
+
+
+def test_parse_inline_plain_text():
+    parts = _parse_inline("Hello world")
+    assert len(parts) == 1
+    assert parts[0]["text"]["content"] == "Hello world"
+    assert parts[0]["annotations"]["bold"] is False
+
+
+def test_parse_inline_bold():
+    parts = _parse_inline("Use **React** aqui")
+    texts = [(p["text"]["content"], p["annotations"]["bold"]) for p in parts]
+    assert ("Use ", False) in texts
+    assert ("React", True) in texts
+    assert (" aqui", False) in texts
+
+
+def test_parse_inline_multiple_bold():
+    parts = _parse_inline("**A** e **B**")
+    bold_texts = [p["text"]["content"] for p in parts if p["annotations"]["bold"]]
+    assert "A" in bold_texts
+    assert "B" in bold_texts
+
+
+def test_parse_inline_empty_string():
+    parts = _parse_inline("")
+    assert isinstance(parts, list)
+    assert len(parts) >= 1
+
+
+def test_markdown_to_blocks_plain_paragraph():
+    blocks = _text_to_blocks("Hello world")
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "paragraph"
+
+
+def test_markdown_to_blocks_heading2():
+    blocks = _text_to_blocks("## Subtítulo")
+    assert blocks[0]["type"] == "heading_2"
+    assert blocks[0]["heading_2"]["rich_text"][0]["text"]["content"] == "Subtítulo"
+
+
+def test_markdown_to_blocks_heading3():
+    blocks = _text_to_blocks("### Detalhe")
+    assert blocks[0]["type"] == "heading_3"
+
+
+def test_markdown_to_blocks_bullet_list():
+    blocks = _text_to_blocks("- Item A\n- Item B")
+    types = [b["type"] for b in blocks]
+    assert types == ["bulleted_list_item", "bulleted_list_item"]
+
+
+def test_markdown_to_blocks_numbered_list():
+    blocks = _text_to_blocks("1. Primeiro\n2. Segundo")
+    types = [b["type"] for b in blocks]
+    assert types == ["numbered_list_item", "numbered_list_item"]
+
+
+def test_markdown_to_blocks_divider():
+    blocks = _text_to_blocks("---")
+    assert blocks[0]["type"] == "divider"
+
+
+def test_markdown_to_blocks_splits_on_newline():
+    blocks = _text_to_blocks("First\nSecond\nThird")
+    assert len(blocks) == 3
+
+
+def test_markdown_to_blocks_skips_empty_lines():
+    blocks = _text_to_blocks("First\n\nSecond")
+    assert len(blocks) == 2
+
+
+def test_markdown_to_blocks_bold_preserved():
+    blocks = _text_to_blocks("**Important** item")
+    rich = blocks[0]["paragraph"]["rich_text"]
+    bold_parts = [p for p in rich if p["annotations"]["bold"]]
+    assert any("Important" in p["text"]["content"] for p in bold_parts)
 
 
 def test_build_properties_title():
@@ -71,12 +167,12 @@ def test_build_properties_fonte_linkedin_capitalization():
     assert props["Fonte"]["select"]["name"] == "LinkedIn"
 
 
-def test_build_properties_status_default_inbox():
+def test_build_properties_status_default_nao_inscrito():
     props = build_properties(_BASE_ENRICHED)
-    assert props["Status"]["select"]["name"] == "Inbox"
+    assert props["Status"]["select"]["name"] == "Não Inscrito"
 
 
-def test_build_properties_score():
+def test_build_properties_score_uses_match_score():
     props = build_properties(_BASE_ENRICHED)
     assert props["Score"]["number"] == 8.5
 
@@ -145,14 +241,14 @@ def test_build_properties_omits_modalidade_when_none():
     assert "Modalidade" not in props
 
 
-def test_build_blocks_has_all_six_sections():
+def test_build_blocks_has_all_eight_sections():
     blocks = build_blocks(_BASE_ENRICHED)
     headings = [
         b["heading_2"]["rich_text"][0]["text"]["content"]
         for b in blocks
         if b["type"] == "heading_2"
     ]
-    assert len(headings) == 6
+    assert len(headings) == 8
 
 
 def test_build_blocks_contains_enrichment_content():
@@ -173,6 +269,26 @@ def test_build_blocks_truncates_long_text():
     paragraphs = [b for b in blocks if b["type"] == "paragraph"]
     for p in paragraphs:
         assert len(p["paragraph"]["rich_text"][0]["text"]["content"]) <= 2000
+
+
+def test_build_blocks_contains_analise_empresa():
+    blocks = build_blocks(_BASE_ENRICHED)
+    all_text = " ".join(
+        b["paragraph"]["rich_text"][0]["text"]["content"]
+        for b in blocks
+        if b["type"] == "paragraph"
+    )
+    assert "Acme was founded in 2010" in all_text
+
+
+def test_build_blocks_contains_fit_cultural():
+    blocks = build_blocks(_BASE_ENRICHED)
+    all_text = " ".join(
+        b["paragraph"]["rich_text"][0]["text"]["content"]
+        for b in blocks
+        if b["type"] == "paragraph"
+    )
+    assert "horizontal structure" in all_text
 
 
 def test_push_job_calls_pages_create():
