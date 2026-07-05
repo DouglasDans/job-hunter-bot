@@ -1,8 +1,7 @@
-import math
-from unittest.mock import call, patch
+from datetime import date, timedelta
+from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from src.collectors.jobspy import _row_to_job, collect_jobs
 from src.models import Profile
@@ -116,3 +115,65 @@ def test_collect_jobs_empty_keywords_returns_empty():
         jobs = collect_jobs(profile)
     mock_scrape.assert_not_called()
     assert jobs == []
+
+
+def test_collect_jobs_includes_google_site():
+    df = _make_df("https://example.com/1")
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df) as mock_scrape:
+        collect_jobs(_PROFILE)
+    site_name = mock_scrape.call_args_list[0][1]["site_name"]
+    assert "google" in site_name
+    assert "indeed" in site_name
+    assert "linkedin" in site_name
+
+
+def test_collect_jobs_uses_portuguese_google_search_term():
+    df = _make_df("https://example.com/1")
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df) as mock_scrape:
+        collect_jobs(_PROFILE)
+    call_kwargs = mock_scrape.call_args_list[0][1]
+    assert call_kwargs["google_search_term"] == "React developer vagas brasil"
+    assert call_kwargs["search_term"] == "React developer"
+
+
+def test_collect_jobs_discards_old_google_job():
+    profile = _PROFILE.model_copy(update={"keywords": ["react"], "hours_old": 24})
+    old_date = date.today() - timedelta(days=5)
+    df = _make_df("https://example.com/google-old")
+    df.loc[0, "site"] = "google"
+    df.loc[0, "date_posted"] = old_date
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df):
+        jobs = collect_jobs(profile)
+    assert jobs == []
+
+
+def test_collect_jobs_keeps_recent_google_job():
+    profile = _PROFILE.model_copy(update={"keywords": ["react"], "hours_old": 24})
+    recent_date = date.today()
+    df = _make_df("https://example.com/google-recent")
+    df.loc[0, "site"] = "google"
+    df.loc[0, "date_posted"] = recent_date
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df):
+        jobs = collect_jobs(profile)
+    assert len(jobs) == 1
+
+
+def test_collect_jobs_keeps_google_job_with_missing_date_posted():
+    profile = _PROFILE.model_copy(update={"keywords": ["react"], "hours_old": 24})
+    df = _make_df("https://example.com/google-no-date")
+    df.loc[0, "site"] = "google"
+    df.loc[0, "date_posted"] = None
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df):
+        jobs = collect_jobs(profile)
+    assert len(jobs) == 1
+
+
+def test_collect_jobs_hours_old_filter_does_not_apply_to_non_google_sites():
+    profile = _PROFILE.model_copy(update={"keywords": ["react"], "hours_old": 24})
+    old_date = date.today() - timedelta(days=30)
+    df = _make_df("https://example.com/indeed-old")
+    df.loc[0, "site"] = "indeed"
+    df.loc[0, "date_posted"] = old_date
+    with patch("src.collectors.jobspy.scrape_jobs", return_value=df):
+        jobs = collect_jobs(profile)
+    assert len(jobs) == 1

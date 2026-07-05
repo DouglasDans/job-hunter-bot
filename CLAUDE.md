@@ -9,7 +9,8 @@ Script Python de execução única que agrega vagas de múltiplas fontes, filtra
 ## Stack
 
 - Python 3.12+ com `uv` para gerenciamento de dependências
-- `jobspy` — coleta multi-fonte (Indeed principal, LinkedIn guest secundário)
+- `jobspy` — coleta multi-fonte (Indeed principal, LinkedIn guest secundário, Google Jobs como
+  meta-agregador de fontes indexadas)
 - `httpx` — cliente HTTP dos coletores Gupy e InHire (APIs públicas, sem autenticação)
 - `notion-client` — SDK oficial Python para leitura do perfil e escrita no DB Vagas
 - `pydantic` — validação e parsing de todos os dados do pipeline
@@ -81,7 +82,10 @@ Fase 0: Lê perfil/config da página do Notion
          → about_me: corpo livre da página de Perfil no Notion (texto corrido)
   ↓
 Fase 1: Coleta vagas via JobSpy + Gupy + InHire
-         → Indeed (principal) + LinkedIn guest (secundário, rate limit na pág. 10)
+         → Indeed (principal) + LinkedIn guest (secundário, rate limit na pág. 10) + Google
+           Jobs (meta-agregador; query em português própria por keyword, já que o scraper
+           monta em inglês por padrão; filtro de hours_old é reaplicado client-side só nas
+           vagas dessa fonte, pois o Google ignora o filtro nativo quando a query é customizada)
          → Gupy: API pública sem autenticação, uma chamada por keyword; resultados vêm
            ordenados por data desc, então o filtro de hours_old para na primeira vaga
            fora da janela em vez de paginar; falha de rede numa keyword loga WARNING e
@@ -307,6 +311,16 @@ próximo).
 falha de dado da API não deveria penalizar a vaga. `date_posted=None` e a vaga passa sem ser
 filtrada por `hours_old`.
 
+**Google Jobs: filtro de `hours_old` reaplicado client-side** — o scraper do Google
+(`jobspy.google`) só monta a janela de tempo automática (`since yesterday`/`in the last week`)
+quando `google_search_term` é `None`. Como esse projeto precisa de uma query em português
+(`f"{keyword} vagas brasil"` — o scraper monta em inglês por padrão, `"{term} jobs"`), o
+`google_search_term` sobrescreve a query inteira e o filtro nativo de tempo é perdido só pro
+Google. Por isso `collect_jobs` reaplica o corte comparando `date_posted` (a lib já extrai a data
+de "há N dias" via regex, funciona independente do idioma) contra o cutoff, só nas linhas
+`site == "google"` — Indeed/LinkedIn continuam confiando no filtro nativo da própria lib.
+Vaga do Google sem `date_posted` (parse falhou) não é descartada, mesma filosofia do InHire.
+
 ## Roadmap — stories
 
 | #   | Story                                                     | Status   |
@@ -323,9 +337,8 @@ filtrada por `hours_old`.
 
 Melhorias pós-story-9 (assertividade e cobertura do funil) estão detalhadas em
 `docs/improvement-plan.md`. Fase 1 (scorer/config/models — stack_groups, veto de modalidade e
-senioridade, matcher word-boundary) e Fase 2 (coletor Gupy) estão implementadas e testadas. Fase 3
-está em andamento: coletor InHire implementado e testado; falta Google Jobs via JobSpy. Falta
-ainda a Fase 4 (distribuição no GitHub).
+senioridade, matcher word-boundary), Fase 2 (coletor Gupy) e Fase 3 (coletor InHire + Google Jobs
+via JobSpy) estão implementadas e testadas. Falta a Fase 4 (distribuição no GitHub).
 
 ## Definition of Done do projeto
 

@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pandas as pd
 from jobspy import scrape_jobs
 
@@ -50,13 +52,17 @@ def collect_jobs(profile: Profile) -> list[Job]:
     if not profile.keywords:
         return []
 
+    # Google ignores the native hours_old time-window phrase once google_search_term
+    # overrides the query, so we re-apply the cutoff ourselves for google-sourced rows.
+    cutoff_date = (datetime.now(UTC) - timedelta(hours=profile.hours_old)).date()
     seen: set[str] = set()
     jobs: list[Job] = []
 
     for keyword in profile.keywords:
         df = scrape_jobs(
-            site_name=["indeed", "linkedin"],
+            site_name=["indeed", "linkedin", "google"],
             search_term=keyword,
+            google_search_term=f"{keyword} vagas brasil",
             location=profile.location,
             country_indeed="brazil",
             hours_old=profile.hours_old,
@@ -68,6 +74,9 @@ def collect_jobs(profile: Profile) -> list[Job]:
             job = _row_to_job(row)
             if job is None or job.url in seen:
                 continue
+            if job.source == "google" and job.date_posted is not None:
+                if job.date_posted < cutoff_date:
+                    continue
             seen.add(job.url)
             jobs.append(job)
 
