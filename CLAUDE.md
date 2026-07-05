@@ -295,6 +295,14 @@ A rota `/vagas/:jobId` foi confirmada inspecionando o bundle JS do frontend púb
 (`{tenant}.inhire.app/static/js/main.*.js`, `path:"/vagas/:jobId"`), não documentada na API.
 `job.url = f"https://{tenant}.inhire.app/vagas/{jobId}"`.
 
+**InHire: erro de encoding no header `X-Tenant` trata como falha do tenant, não crash geral** —
+descoberto rodando o pipeline de verdade: um valor de `inhire_tenants` com caractere não-ASCII
+(ex.: `"itaú"`) faz o `httpx` lançar `UnicodeEncodeError` ao montar o header, **antes** de qualquer
+request de rede — não é um `httpx.HTTPError`, então ficava fora do `except` original e derrubava
+a coleta inteira, inclusive tenants válidos. O `except` da chamada de lista agora também captura
+`UnicodeError`, tratando como mais um "esse tenant não deu certo agora" (loga WARNING, segue pro
+próximo).
+
 **InHire: `publishedAt` ausente/malformado não descarta a vaga** — mesma filosofia do Gupy:
 falha de dado da API não deveria penalizar a vaga. `date_posted=None` e a vaga passa sem ser
 filtrada por `hours_old`.

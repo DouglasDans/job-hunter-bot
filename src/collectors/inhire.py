@@ -63,7 +63,7 @@ def collect_inhire_jobs(profile: Profile) -> list[Job]:
         try:
             list_response = httpx.get(_LIST_URL, headers={"X-Tenant": tenant}, timeout=10)
             list_response.raise_for_status()
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, UnicodeError) as e:
             logger.warning("InHire list collection failed for tenant %r: %s", tenant, e)
             continue
 

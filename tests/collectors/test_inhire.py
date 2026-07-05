@@ -173,6 +173,27 @@ def test_collect_inhire_jobs_continues_on_list_http_error(caplog):
     assert jobs[0].company == "Acme Corp"
 
 
+def test_collect_inhire_jobs_continues_on_header_encoding_error(caplog):
+    profile = make_profile(inhire_tenants=["itaú", "venturus"])
+    list_payload = {"jobsPage": [make_list_item()]}
+    details = {"job-1": make_detail()}
+
+    def side_effect(url, headers, timeout):
+        if headers.get("X-Tenant") == "itaú":
+            raise UnicodeEncodeError("ascii", "itaú", 3, 4, "ordinal not in range(128)")
+        return _mock_get(list_payload, details)(url, headers, timeout)
+
+    with (
+        patch("src.collectors.inhire.httpx.get", side_effect=side_effect),
+        caplog.at_level(logging.WARNING),
+    ):
+        jobs = collect_inhire_jobs(profile)
+
+    assert "itaú" in caplog.text
+    assert len(jobs) == 1
+    assert jobs[0].company == "Acme Corp"
+
+
 def test_collect_inhire_jobs_multiple_tenants_are_all_queried():
     profile = make_profile(inhire_tenants=["venturus", "outra"])
     list_payload = {"jobsPage": [make_list_item()]}
