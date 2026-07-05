@@ -1,11 +1,13 @@
 import pytest
+from pydantic import ValidationError
+
 from src.config import _blocks_to_text, parse_profile
 
 SAMPLE_PAGE = {
     "properties": {
         "keywords": {"rich_text": [{"plain_text": "React developer, frontend engineer"}]},
         "location": {"rich_text": [{"plain_text": "Brazil"}]},
-        "required_stack": {"multi_select": [{"name": "React"}, {"name": "TypeScript"}]},
+        "stack_groups": {"rich_text": [{"plain_text": "React, TypeScript | Node.js, Java"}]},
         "bonus_stack": {"multi_select": [{"name": "PostgreSQL"}, {"name": "Docker"}]},
         "seniority": {"multi_select": [{"name": "Pleno"}, {"name": "Junior"}]},
         "modality": {"multi_select": [{"name": "Remoto"}, {"name": "Híbrido"}]},
@@ -24,7 +26,7 @@ def test_parse_full_profile():
     profile = parse_profile(SAMPLE_PAGE)
     assert profile.keywords == ["React developer", "frontend engineer"]
     assert profile.location == "Brazil"
-    assert profile.required_stack == ["React", "TypeScript"]
+    assert profile.stack_groups == [["React", "TypeScript"], ["Node.js", "Java"]]
     assert profile.bonus_stack == ["PostgreSQL", "Docker"]
     assert profile.seniority == ["Pleno", "Junior"]
     assert profile.modality == ["Remoto", "Híbrido"]
@@ -45,11 +47,22 @@ def test_empty_dealbreakers():
     assert profile.dealbreakers == []
 
 
-def test_empty_stacks():
-    page = _with({"required_stack": {"multi_select": []}, "bonus_stack": {"multi_select": []}})
+def test_bonus_stack_empty():
+    page = _with({"bonus_stack": {"multi_select": []}})
     profile = parse_profile(page)
-    assert profile.required_stack == []
     assert profile.bonus_stack == []
+
+
+def test_stack_groups_malformed_filters_empty_groups():
+    page = _with({"stack_groups": {"rich_text": [{"plain_text": "React |  | Node"}]}})
+    profile = parse_profile(page)
+    assert profile.stack_groups == [["React"], ["Node"]]
+
+
+def test_stack_groups_empty_raises_validation_error():
+    page = _with({"stack_groups": {"rich_text": []}})
+    with pytest.raises(ValidationError):
+        parse_profile(page)
 
 
 def test_null_score_threshold_uses_default():

@@ -20,7 +20,7 @@ def build_system_prompt(profile: Profile) -> str:
         "Resumo técnico:",
         f"- Senioridade: {', '.join(profile.seniority)}",
         f"- Modalidade preferida: {', '.join(profile.modality)}",
-        f"- Stack principal: {', '.join(profile.required_stack)}",
+        f"- Stack principal: {' | '.join(', '.join(g) for g in profile.stack_groups)}",
         f"- Stack bônus: {', '.join(profile.bonus_stack)}",
         f"- Dealbreakers: {', '.join(profile.dealbreakers)}",
         "",
@@ -92,10 +92,11 @@ def parse_markdown_output(raw: str, scored_job: ScoredJob) -> EnrichedJob:
     return EnrichedJob(
         job=scored_job.job,
         score=scored_job.score,
-        required_hits=scored_job.required_hits,
+        stack_hits=scored_job.stack_hits,
         bonus_hits=scored_job.bonus_hits,
         body_markdown=body.strip(),
         match_score=match_score,
+        seniority_signal=scored_job.seniority_signal,
     )
 
 

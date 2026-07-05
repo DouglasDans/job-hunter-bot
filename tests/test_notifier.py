@@ -20,7 +20,7 @@ _BASE_JOB = Job(
 _BASE_ENRICHED = EnrichedJob(
     job=_BASE_JOB,
     score=8.5,
-    required_hits=["React", "TypeScript"],
+    stack_hits=["React", "TypeScript"],
     bonus_hits=["Docker"],
     body_markdown=(
         "## Plano de Ação\n"
@@ -226,6 +226,28 @@ def test_build_properties_omits_date_when_none():
     )
     props = build_properties(enriched)
     assert "Data da vaga" not in props
+
+
+def test_build_properties_senioridade_uses_job_level_when_no_signal():
+    props = build_properties(_BASE_ENRICHED)
+    assert props["Senioridade"]["select"]["name"] == "Pleno"
+
+
+def test_build_properties_senioridade_prefers_seniority_signal():
+    enriched = _BASE_ENRICHED.model_copy(
+        update={"job": _BASE_JOB.model_copy(update={"job_level": "mid-senior level"})}
+    )
+    enriched = enriched.model_copy(update={"seniority_signal": "Pleno"})
+    props = build_properties(enriched)
+    assert props["Senioridade"]["select"]["name"] == "Pleno"
+
+
+def test_build_properties_omits_senioridade_when_neither_present():
+    enriched = _BASE_ENRICHED.model_copy(
+        update={"job": _BASE_JOB.model_copy(update={"job_level": None})}
+    )
+    props = build_properties(enriched)
+    assert "Senioridade" not in props
 
 
 def test_build_properties_modalidade_remoto():

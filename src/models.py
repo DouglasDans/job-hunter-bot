@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class Profile(BaseModel):
     keywords: list[str]
     location: str
-    required_stack: list[str]
+    stack_groups: list[list[str]] = Field(min_length=1)
     bonus_stack: list[str]
     seniority: list[str]
     modality: list[str]
@@ -33,14 +33,16 @@ class Job(BaseModel):
 class ScoredJob(BaseModel):
     job: Job
     score: float
-    required_hits: list[str]
+    stack_hits: list[str]
     bonus_hits: list[str]
+    seniority_signal: str | None = None
 
 
 class EnrichedJob(BaseModel):
     job: Job
     score: float
-    required_hits: list[str]
+    stack_hits: list[str]
     bonus_hits: list[str]
     body_markdown: str
     match_score: float
+    seniority_signal: str | None = None

@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -14,6 +15,7 @@ from .scorer import score_jobs
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO)
     load_dotenv()
     client = Client(auth=os.environ["NOTION_TOKEN"])
     profile = load_profile(client, os.environ["NOTION_PROFILE_DATABASE_ID"])
@@ -34,7 +36,7 @@ def main() -> None:
     llm = create_llm_client()
     pushed = 0
     for s in scored:
-        stack = s.required_hits + [f"+{b}" for b in s.bonus_hits]
+        stack = s.stack_hits + [f"+{b}" for b in s.bonus_hits]
         print(f"  [{s.score:4.1f}] {s.job.title} @ {s.job.company} ({s.job.source})")
         print(f"         {', '.join(stack)}")
         try:

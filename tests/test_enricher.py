@@ -12,7 +12,7 @@ from src.models import EnrichedJob, Job, Profile, ScoredJob
 PROFILE = Profile(
     keywords=["React developer"],
     location="Brazil",
-    required_stack=["React", "TypeScript"],
+    stack_groups=[["React", "TypeScript"]],
     bonus_stack=["PostgreSQL", "Docker"],
     seniority=["Pleno", "Junior"],
     modality=["Remoto"],
@@ -24,7 +24,7 @@ PROFILE = Profile(
 PROFILE_WITH_ABOUT = Profile(
     keywords=["React developer"],
     location="Brazil",
-    required_stack=["React", "TypeScript"],
+    stack_groups=[["React", "TypeScript"]],
     bonus_stack=["PostgreSQL", "Docker"],
     seniority=["Pleno", "Junior"],
     modality=["Remoto"],
@@ -47,7 +47,7 @@ SCORED_JOB = ScoredJob(
         location="Brazil",
     ),
     score=7.0,
-    required_hits=["React", "TypeScript"],
+    stack_hits=["React", "TypeScript"],
     bonus_hits=[],
 )
 
@@ -91,7 +91,7 @@ class StubLLMClient(LLMClient):
         return self._response
 
 
-def test_build_system_prompt_contains_required_stack():
+def test_build_system_prompt_contains_stack_groups():
     prompt = build_system_prompt(PROFILE)
     assert "React" in prompt
     assert "TypeScript" in prompt
@@ -154,15 +154,21 @@ def test_parse_markdown_output_missing_match_score():
 
 def test_parse_markdown_output_propagates_hits():
     result = parse_markdown_output(VALID_MARKDOWN, SCORED_JOB)
-    assert result.required_hits == ["React", "TypeScript"]
+    assert result.stack_hits == ["React", "TypeScript"]
     assert result.bonus_hits == []
+
+
+def test_parse_markdown_output_propagates_seniority_signal():
+    scored_job = SCORED_JOB.model_copy(update={"seniority_signal": "Pleno"})
+    result = parse_markdown_output(VALID_MARKDOWN, scored_job)
+    assert result.seniority_signal == "Pleno"
 
 
 def test_enrich_job_returns_enriched_job():
     llm = StubLLMClient(VALID_MARKDOWN)
     result = enrich_job(SCORED_JOB, PROFILE, llm)
     assert isinstance(result, EnrichedJob)
-    assert result.required_hits == ["React", "TypeScript"]
+    assert result.stack_hits == ["React", "TypeScript"]
     assert result.match_score == 8.5
 
 

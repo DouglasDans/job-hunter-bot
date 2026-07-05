@@ -17,6 +17,11 @@ def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _parse_stack_groups(value: str) -> list[list[str]]:
+    groups = [_split_csv(group) for group in value.split("|")]
+    return [group for group in groups if group]
+
+
 def _multi_select(props: dict, key: str) -> list[str]:
     return [item["name"] for item in props.get(key, {}).get("multi_select", [])]
 
@@ -49,7 +54,7 @@ def parse_profile(page: dict, about_me: str = "") -> Profile:
     return Profile(
         keywords=_split_csv(_text(props, "keywords")),
         location=_text(props, "location"),
-        required_stack=_multi_select(props, "required_stack"),
+        stack_groups=_parse_stack_groups(_text(props, "stack_groups")),
         bonus_stack=_multi_select(props, "bonus_stack"),
         seniority=_multi_select(props, "seniority"),
         modality=_multi_select(props, "modality"),

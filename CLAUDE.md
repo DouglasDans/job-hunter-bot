@@ -70,7 +70,7 @@ O script é uma função pura que roda e morre. Cada execução percorre estas f
 
 ```
 Fase 0: Lê perfil/config da página do Notion
-         → Profile(keywords, location, required_stack, bonus_stack,
+         → Profile(keywords, location, stack_groups, bonus_stack,
                    seniority, modality, dealbreakers, score_threshold,
                    hours_old, about_me)
          → about_me: corpo livre da página de Perfil no Notion (texto corrido)
@@ -81,9 +81,21 @@ Fase 1: Coleta vagas via JobSpy
 Fase 2: Dedup — busca URLs normalizadas no DB Vagas, descarta existentes
   ↓
 Fase 3: Score por keyword matching (Python puro, sem IA)
-         → required_stack: peso 70% | bonus_stack: peso 30%
-         → dealbreaker presente: veto imediato (score = 0)
+         → stack_groups: candidato multi-stack (ex.: Frontend | Backend). Um grupo é
+           "matched" se qualquer tecnologia do grupo aparece na vaga.
+           score = 7 × grupos_matched/total_grupos + 3 × bonus_hits/len(bonus_stack)
+         → matching word-boundary aware com sinônimos (node.js/nodejs/node, .net/dotnet,
+           c#/csharp, etc.) — evita falso positivo tipo "java" casando em "javascript"
+         → dealbreakers: termos de modalidade (presencial/on-site) só vetam via
+           título+localização (nunca a descrição); demais dealbreakers vetam
+           título+descrição, também word-boundary aware
+         → veto de modalidade respeita o perfil: `is_remote=False` só veta se o
+           perfil aceitar só "Remoto"; título/location com remoto/híbrido nunca veta
+         → veto de senioridade por tokens do título (sr, iii, especialista, staff,
+           lead, principal, senior/sênior) quando "Senior" não está no perfil;
+           sinal positivo (Pleno/Junior) anotado em `ScoredJob.seniority_signal`
          → descarta score < profile.score_threshold
+         → todo veto é logado em INFO (motivo + título + empresa)
   ↓
 Fase 4: Pesquisa de empresa via DuckDuckGo (best-effort, falha silenciosa)
          → 2 queries × 3 resultados = até 6 snippets sobre a empresa
@@ -119,13 +131,18 @@ Database com uma única linha (o perfil). Propriedades:
 |---|---|---|
 | keywords | Text | "React developer, frontend engineer" |
 | location | Text | "Brazil" |
-| required_stack | Multi-select | React, TypeScript, Node.js |
+| stack_groups | Text | "React, Angular, Next.js \| Node.js, NestJS, Java, Spring, .NET, C#" |
 | bonus_stack | Multi-select | PostgreSQL, Docker, AWS |
 | seniority | Select | Senior / Pleno / Junior |
 | modality | Select | Remoto / Híbrido / Presencial |
 | dealbreakers | Text | "PHP, Delphi, gestão de equipe" |
 | score_threshold | Number | 6.0 |
 | hours_old | Number | 24 |
+
+`stack_groups`: grupos separados por `|`, tecnologias dentro do grupo separadas por `,`. Modela um
+candidato multi-stack (ex.: aceita Node **ou** Java **ou** .NET, desde que tenha React). Grupos
+vazios após o parse (`"React | | Node"`) são descartados; se restar zero grupos, `Profile` falha a
+validação (Pydantic `min_length=1`) — config quebrada deve travar, não deixar tudo passar.
 
 **Corpo da página** (texto livre): usado como `about_me` no system prompt do LLM. Descreva seu background, experiências, valores e o que busca em uma empresa. Quanto mais detalhado, mais personalizada a análise.
 
@@ -181,6 +198,28 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 **Scoring por keyword, não IA** — keyword matching filtra ruído antes de gastar tokens. IA só onde agrega valor real: o enriquecimento. O score de keyword não aparece no Notion — apenas o `match_score` gerado pela IA.
 
+**Stack groups em vez de ratio sobre `required_stack`** — um candidato multi-stack (Node **ou**
+Java **ou** .NET) não deveria ser penalizado por não citar as três. Cada grupo é matched se
+qualquer tecnologia do grupo aparece na vaga; a nota é proporcional a grupos matched, não a itens
+individuais. Alternativa descartada: gating só via LLM — mais caro em tokens e não resolve o
+problema de custo/ruído que o keyword matching já resolve bem.
+
+**Matcher word-boundary com sinônimos hardcoded no scorer** — regex com lookaround alfanumérico
+(`(?<![a-z0-9])termo(?![a-z0-9])`) em vez de `\b` puro, porque `\b` falha em termos que começam ou
+terminam com caractere não-alfanumérico (`.NET`, `C#`). Sinônimos (`node.js/nodejs/node`,
+`.net/dotnet/asp.net`, `c#/csharp`, `react/reactjs`, `next.js/nextjs`, `spring/spring boot`,
+`nest/nestjs`, `llm/llms`) são uma lista pequena e explícita — nada além disso, YAGNI.
+
+**Veto de modalidade não olha a descrição** — vagas remotas frequentemente citam "trabalho
+presencial" na seção de benefícios (auxílio mobilidade híbrido/presencial). Vetar por isso mataria
+vagas boas. O veto de modalidade só olha título + localização + `is_remote`; a descrição nunca é
+usada para decidir modalidade.
+
+**`seniority_signal` como campo separado, não sobrescreve `job_level`** — o `job_level` bruto do
+JobSpy (ex. "mid-senior level") é ruído para exibição. `seniority_signal` é uma anotação derivada
+do título (Pleno/Junior/None) usada só para preencher "Senioridade" no Notion de forma mais limpa;
+nunca influencia o veto, que já aconteceu antes dela ser calculada.
+
 **match_score ≠ score de keyword** — o score de keyword (0–10) é usado só como filtro interno (threshold). O `match_score` que aparece no Notion é a avaliação da IA sobre compatibilidade real entre candidato e vaga, incorporando perfil, cultura e stack.
 
 **about_me via corpo da página do Notion** — campo de texto livre na página do Perfil (não uma propriedade). Permite atualizar o contexto pessoal sem alterar o schema do DB.
@@ -218,6 +257,12 @@ OLLAMA_BASE_URL=http://localhost:11434
 | 7 | Haiku primary, Ollama runtime fallback | ✅ |
 | 8 | Perfil pessoal via corpo da página do Notion (`about_me`) | ✅ |
 | 9 | Pesquisa de empresa + análise de fit + match_score real | ✅ |
+
+Melhorias pós-story-9 (assertividade e cobertura do funil) estão detalhadas em
+`docs/improvement-plan.md`. Fase 1 (scorer/config/models — stack_groups, veto de modalidade e
+senioridade, matcher word-boundary) está implementada e testada; falta remover a propriedade
+`required_stack` do Notion e rodar o pipeline real para calibrar antes das Fases 2–4 (novos
+coletores e distribuição).
 
 ## Definition of Done do projeto
 

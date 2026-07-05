@@ -91,7 +91,7 @@ def _text_to_blocks(text: str) -> list[dict]:
 
 def build_properties(enriched: EnrichedJob) -> dict:
     job = enriched.job
-    stack = sorted(set(enriched.required_hits + enriched.bonus_hits))
+    stack = sorted(set(enriched.stack_hits + enriched.bonus_hits))
 
     props: dict = {
         "Nome": {"title": [{"type": "text", "text": {"content": job.title}}]},
@@ -111,8 +111,9 @@ def build_properties(enriched: EnrichedJob) -> dict:
     elif job.is_remote is False:
         props["Modalidade"] = {"select": {"name": "Presencial"}}
 
-    if job.job_level:
-        props["Senioridade"] = {"select": {"name": job.job_level}}
+    senioridade = enriched.seniority_signal or job.job_level
+    if senioridade:
+        props["Senioridade"] = {"select": {"name": senioridade}}
 
     if job.date_posted:
         props["Data da vaga"] = {"date": {"start": job.date_posted.isoformat()}}

@@ -68,8 +68,9 @@ Our engineering culture values simplicity, ownership, and continuous learning.
 FAKE_SCORED = ScoredJob(
     job=FAKE_JOB,
     score=9.0,
-    required_hits=["React", "TypeScript", "Node.js"],
+    stack_hits=["React", "TypeScript", "Node.js"],
     bonus_hits=["PostgreSQL", "Docker", "AWS"],
+    seniority_signal=None,
 )
 
 

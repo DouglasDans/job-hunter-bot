@@ -73,7 +73,7 @@ def test_salary_fields_mapped():
 _PROFILE = Profile(
     keywords=["React developer", "frontend engineer"],
     location="Brazil",
-    required_stack=["React"],
+    stack_groups=[["React"]],
     bonus_stack=[],
     seniority=["Pleno", "Junior"],
     modality=["Remoto"],
