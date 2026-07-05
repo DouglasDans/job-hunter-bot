@@ -10,7 +10,7 @@ Script Python de execução única que agrega vagas de múltiplas fontes, filtra
 
 - Python 3.12+ com `uv` para gerenciamento de dependências
 - `jobspy` — coleta multi-fonte (Indeed principal, LinkedIn guest secundário)
-- `httpx` — cliente HTTP do coletor Gupy (API pública, sem autenticação)
+- `httpx` — cliente HTTP dos coletores Gupy e InHire (APIs públicas, sem autenticação)
 - `notion-client` — SDK oficial Python para leitura do perfil e escrita no DB Vagas
 - `pydantic` — validação e parsing de todos os dados do pipeline
 - `python-dotenv` — tokens via `.env`
@@ -31,6 +31,7 @@ uv run ruff format src/          # formatação
 ```
 
 Logs da execução agendada:
+
 ```bash
 journalctl --user -u job-hunter -f
 ```
@@ -44,7 +45,8 @@ job-hunter-bot/
 │   ├── config.py         # lê página de perfil do Notion → Profile (props + corpo da página)
 │   ├── collectors/
 │   │   ├── jobspy.py     # wrapper JobSpy (Indeed/LinkedIn) → list[Job]
-│   │   └── gupy.py       # API pública Gupy → list[Job]
+│   │   ├── gupy.py       # API pública Gupy → list[Job]
+│   │   └── inhire.py     # API pública InHire (por tenant) → list[Job]
 │   ├── scorer.py         # keyword matching → Job com score
 │   ├── dedup.py          # busca URLs existentes no DB Vagas
 │   ├── researcher.py     # pesquisa web (ddgs) → contexto sobre a empresa
@@ -75,15 +77,19 @@ O script é uma função pura que roda e morre. Cada execução percorre estas f
 Fase 0: Lê perfil/config da página do Notion
          → Profile(keywords, location, stack_groups, bonus_stack,
                    seniority, modality, dealbreakers, score_threshold,
-                   hours_old, about_me)
+                   hours_old, about_me, inhire_tenants)
          → about_me: corpo livre da página de Perfil no Notion (texto corrido)
   ↓
-Fase 1: Coleta vagas via JobSpy + Gupy
+Fase 1: Coleta vagas via JobSpy + Gupy + InHire
          → Indeed (principal) + LinkedIn guest (secundário, rate limit na pág. 10)
          → Gupy: API pública sem autenticação, uma chamada por keyword; resultados vêm
            ordenados por data desc, então o filtro de hours_old para na primeira vaga
            fora da janela em vez de paginar; falha de rede numa keyword loga WARNING e
            não derruba as outras fontes
+         → InHire: API pública por tenant (`profile.inhire_tenants`); uma chamada de
+           lista por tenant + uma chamada de detalhe por vaga published (a lista não
+           traz data nem descrição); falha na lista ou no detalhe de uma vaga loga
+           WARNING e não derruba as outras vagas/tenants
   ↓
 Fase 2: Dedup — busca URLs normalizadas no DB Vagas, descarta existentes
   ↓
@@ -128,46 +134,54 @@ Encerra
 ## Notion setup
 
 IDs criados (usar no `.env`):
+
 - **Perfil DB**: `8d3a581b39a748518552701ba09b3e23` → https://app.notion.com/p/8d3a581b39a748518552701ba09b3e23
 - **Vagas DB**: `605ffabb4d76486c9996b0b33f28d7e2` → https://app.notion.com/p/605ffabb4d76486c9996b0b33f28d7e2
 
 ### Database Perfil (config)
+
 Database com uma única linha (o perfil). Propriedades:
 
-| Propriedade | Tipo Notion | Exemplo |
-|---|---|---|
-| keywords | Text | "React developer, frontend engineer" |
-| location | Text | "Brazil" |
-| stack_groups | Text | "React, Angular, Next.js \| Node.js, NestJS, Java, Spring, .NET, C#" |
-| bonus_stack | Multi-select | PostgreSQL, Docker, AWS |
-| seniority | Select | Senior / Pleno / Junior |
-| modality | Select | Remoto / Híbrido / Presencial |
-| dealbreakers | Text | "PHP, Delphi, gestão de equipe" |
-| score_threshold | Number | 6.0 |
-| hours_old | Number | 24 |
+| Propriedade     | Tipo Notion  | Exemplo                                                              |
+| --------------- | ------------ | -------------------------------------------------------------------- |
+| keywords        | Text         | "React developer, frontend engineer"                                 |
+| location        | Text         | "Brazil"                                                             |
+| stack_groups    | Text         | "React, Angular, Next.js \| Node.js, NestJS, Java, Spring, .NET, C#" |
+| bonus_stack     | Multi-select | PostgreSQL, Docker, AWS                                              |
+| seniority       | Select       | Senior / Pleno / Junior                                              |
+| modality        | Select       | Remoto / Híbrido / Presencial                                        |
+| dealbreakers    | Text         | "PHP, Delphi, gestão de equipe"                                      |
+| score_threshold | Number       | 6.0                                                                  |
+| hours_old       | Number       | 24                                                                   |
+| inhire_tenants  | Text         | "venturus"                                                           |
 
 `stack_groups`: grupos separados por `|`, tecnologias dentro do grupo separadas por `,`. Modela um
 candidato multi-stack (ex.: aceita Node **ou** Java **ou** .NET, desde que tenha React). Grupos
 vazios após o parse (`"React | | Node"`) são descartados; se restar zero grupos, `Profile` falha a
 validação (Pydantic `min_length=1`) — config quebrada deve travar, não deixar tudo passar.
 
+`inhire_tenants`: subdomínios InHire separados por `,` (ex.: `"venturus, outra_empresa"`), consultados
+pelo coletor InHire via header `X-Tenant`. Lista vazia (propriedade ausente ou em branco) → coletor
+não faz nenhuma chamada HTTP.
+
 **Corpo da página** (texto livre): usado como `about_me` no system prompt do LLM. Descreva seu background, experiências, valores e o que busca em uma empresa. Quanto mais detalhado, mais personalizada a análise.
 
 ### DB Vagas
-| Propriedade | Tipo Notion | Observação |
-|---|---|---|
-| Nome | Title | |
-| Empresa | Text | |
-| URL | URL | |
-| Fonte | Select (Indeed / LinkedIn / Greenhouse / Lever / Gupy) | |
-| Status | Select (Não Inscrito / Inscrito / Aguardando / Etapas Pendentes / Finalizado) | default: Não Inscrito |
-| Score | Number | match_score da IA (0–10), não o score de keyword |
-| Stack detectada | Multi-select | |
-| Senioridade | Select | |
-| Modalidade | Select | |
-| Localização | Text | |
-| Data da vaga | Date | |
-| Salário | Text | |
+
+| Propriedade     | Tipo Notion                                                                   | Observação                                       |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| Nome            | Title                                                                         |                                                  |
+| Empresa         | Text                                                                          |                                                  |
+| URL             | URL                                                                           |                                                  |
+| Fonte           | Select (Indeed / LinkedIn / Greenhouse / Lever / Gupy / InHire)               |                                                  |
+| Status          | Select (Não Inscrito / Inscrito / Aguardando / Etapas Pendentes / Finalizado) | default: Não Inscrito                            |
+| Score           | Number                                                                        | match_score da IA (0–10), não o score de keyword |
+| Stack detectada | Multi-select                                                                  |                                                  |
+| Senioridade     | Select                                                                        |                                                  |
+| Modalidade      | Select                                                                        |                                                  |
+| Localização     | Text                                                                          |                                                  |
+| Data da vaga    | Date                                                                          |                                                  |
+| Salário         | Text                                                                          |                                                  |
 
 Corpo da página: 8 seções geradas pelo LLM em Markdown, convertidas para blocos Notion tipados. Emojis por convenção: ✅ em Sinais de Cultura, 🚩 para red flags críticos, 🟠 para red flags secundários.
 
@@ -188,16 +202,16 @@ OLLAMA_BASE_URL=http://localhost:11434
 
 ## Seções do corpo da vaga no Notion
 
-| Campo | Descrição |
-|---|---|
-| Plano de Ação | Passos concretos e personalizados baseados no perfil do candidato; quando há bom fit, inclui abordagem direta no LinkedIn (quem contatar + exemplo de mensagem) |
-| O que Estudar | Lacunas específicas na stack antes de aplicar |
-| Sinais de Cultura | Evidências positivas de cultura e ambiente de trabalho (✅ por item) |
-| Red Flags | Alertas e aspectos negativos identificados (🚩 críticos, 🟠 secundários) |
-| Perguntas Prováveis | Perguntas técnicas e comportamentais esperadas na entrevista |
-| Resumo da Empresa | Contexto sobre produto e mercado |
-| Análise da Empresa | Histórico, reputação e benefícios com base em dados externos |
-| Fit Cultural | Avaliação de compatibilidade entre empresa e valores do candidato |
+| Campo               | Descrição                                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plano de Ação       | Passos concretos e personalizados baseados no perfil do candidato; quando há bom fit, inclui abordagem direta no LinkedIn (quem contatar + exemplo de mensagem) |
+| O que Estudar       | Lacunas específicas na stack antes de aplicar                                                                                                                   |
+| Sinais de Cultura   | Evidências positivas de cultura e ambiente de trabalho (✅ por item)                                                                                            |
+| Red Flags           | Alertas e aspectos negativos identificados (🚩 críticos, 🟠 secundários)                                                                                        |
+| Perguntas Prováveis | Perguntas técnicas e comportamentais esperadas na entrevista                                                                                                    |
+| Resumo da Empresa   | Contexto sobre produto e mercado                                                                                                                                |
+| Análise da Empresa  | Histórico, reputação e benefícios com base em dados externos                                                                                                    |
+| Fit Cultural        | Avaliação de compatibilidade entre empresa e valores do candidato                                                                                               |
 
 ## Decisões arquiteturais
 
@@ -263,24 +277,47 @@ como nome da empresa — validado com múltiplas keywords reais, sempre nome rea
 marketing). `httpx` virou dependência direta (antes só transitiva via `notion-client`) por ser mais
 explícito que depender de uma lib que não está no `pyproject.toml`.
 
+**InHire: detalhe é a única fonte de verdade, lista só enumera** — `GET
+job-posts/public/pages` (header `X-Tenant`) não traz data de publicação nem descrição, só
+`jobId`/`status`/`displayName`/`workplaceType`/`location`. Todo o mapeamento do `Job` usa
+`GET job-posts/public/pages/:jobId`, que retorna todos os campos (inclusive os que já vinham na
+lista) — evita depender de dois formatos parcialmente sobrepostos. A lista é usada apenas para
+filtrar `status != "published"` antes de gastar a chamada de detalhe.
+
+**InHire: `description` vem em HTML real, não texto puro** — diferente do Gupy (texto puro com
+`&nbsp;`), o InHire retorna tags reais (`<p>`, `<li>`, `<h2>`, etc.). Stripper próprio via regex
+(sem BeautifulSoup/lxml — YAGNI, fonte confiável, não é HTML arbitrário de terceiros): tags de
+bloco (`p`, `div`, `li`, `ul`, `ol`, `h1-6`, `br`) viram quebra de linha, tags inline somem sem
+deixar rastro, entidades decodificadas com `html.unescape`.
+
+**InHire: URL da vaga é construída, não vem da API** — nenhum payload expõe uma URL pública.
+A rota `/vagas/:jobId` foi confirmada inspecionando o bundle JS do frontend público
+(`{tenant}.inhire.app/static/js/main.*.js`, `path:"/vagas/:jobId"`), não documentada na API.
+`job.url = f"https://{tenant}.inhire.app/vagas/{jobId}"`.
+
+**InHire: `publishedAt` ausente/malformado não descarta a vaga** — mesma filosofia do Gupy:
+falha de dado da API não deveria penalizar a vaga. `date_posted=None` e a vaga passa sem ser
+filtrada por `hours_old`.
+
 ## Roadmap — stories
 
-| # | Story | Status |
-|---|---|---|
-| 1 | Setup + leitura do perfil do Notion | ✅ |
-| 2 | Coleta + scoring por keyword | ✅ |
-| 3 | Dedup contra DB Vagas | ✅ |
-| 4 | Enriquecimento via Ollama | ✅ |
-| 5 | Push pro Notion DB Vagas | ✅ |
-| 6 | Orquestração systemd | pendente |
-| 7 | Haiku primary, Ollama runtime fallback | ✅ |
-| 8 | Perfil pessoal via corpo da página do Notion (`about_me`) | ✅ |
-| 9 | Pesquisa de empresa + análise de fit + match_score real | ✅ |
+| #   | Story                                                     | Status   |
+| --- | --------------------------------------------------------- | -------- | --- |
+| 1   | Setup + leitura do perfil do Notion                       | ✅       |
+| 2   | Coleta + scoring por keyword                              | ✅       |
+| 3   | Dedup contra DB Vagas                                     | ✅       |
+| 4   | Enriquecimento via Ollama                                 | ✅       |
+| 5   | Push pro Notion DB Vagas                                  | ✅       |
+| 6   | Orquestração systemd                                      | pendente |
+| 7   | Haiku primary, Ollama runtime fallback                    | ✅       |
+| 8   | Perfil pessoal via corpo da página do Notion (`about_me`) | ✅       |
+| 9   | Pesquisa de empresa + análise de fit + match_score real   | ✅       |
 
 Melhorias pós-story-9 (assertividade e cobertura do funil) estão detalhadas em
 `docs/improvement-plan.md`. Fase 1 (scorer/config/models — stack_groups, veto de modalidade e
-senioridade, matcher word-boundary) e Fase 2 (coletor Gupy) estão implementadas e testadas. Falta
-a Fase 3 (coletor InHire + Google Jobs via JobSpy) e a Fase 4 (distribuição no GitHub).
+senioridade, matcher word-boundary) e Fase 2 (coletor Gupy) estão implementadas e testadas. Fase 3
+está em andamento: coletor InHire implementado e testado; falta Google Jobs via JobSpy. Falta
+ainda a Fase 4 (distribuição no GitHub).
 
 ## Definition of Done do projeto
 

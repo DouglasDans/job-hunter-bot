@@ -62,6 +62,7 @@ def parse_profile(page: dict, about_me: str = "") -> Profile:
         score_threshold=_number(props, "score_threshold", 6.0),
         hours_old=int(_number(props, "hours_old", 24)),
         about_me=about_me,
+        inhire_tenants=_split_csv(_text(props, "inhire_tenants")),
     )
 
 

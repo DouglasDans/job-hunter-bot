@@ -14,6 +14,7 @@ class Profile(BaseModel):
     score_threshold: float = Field(default=6.0)
     hours_old: int = Field(default=24)
     about_me: str = ""
+    inhire_tenants: list[str] = Field(default_factory=list)
 
 
 class Job(BaseModel):

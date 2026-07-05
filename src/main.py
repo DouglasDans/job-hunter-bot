@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from notion_client import Client
 
 from .collectors.gupy import collect_gupy_jobs
+from .collectors.inhire import collect_inhire_jobs
 from .collectors.jobspy import collect_jobs
 from .config import load_profile
 from .dedup import fetch_existing_urls, filter_new_jobs
@@ -23,7 +24,7 @@ def main() -> None:
 
     n, loc, h = len(profile.keywords), profile.location, profile.hours_old
     print(f"Buscando {n} keywords em {loc} (últimas {h}h)")
-    jobs = collect_jobs(profile) + collect_gupy_jobs(profile)
+    jobs = collect_jobs(profile) + collect_gupy_jobs(profile) + collect_inhire_jobs(profile)
     print(f"Coletadas: {len(jobs)} vagas")
 
     existing_urls = fetch_existing_urls(client, os.environ["NOTION_VAGAS_DATABASE_ID"])

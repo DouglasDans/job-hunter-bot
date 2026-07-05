@@ -83,6 +83,17 @@ def test_missing_multi_select_returns_empty_list():
     assert profile.seniority == []
 
 
+def test_inhire_tenants_parsed_from_csv():
+    page = _with({"inhire_tenants": {"rich_text": [{"plain_text": "venturus, outra_empresa"}]}})
+    profile = parse_profile(page)
+    assert profile.inhire_tenants == ["venturus", "outra_empresa"]
+
+
+def test_inhire_tenants_defaults_empty_when_missing():
+    profile = parse_profile(SAMPLE_PAGE)
+    assert profile.inhire_tenants == []
+
+
 def test_parse_profile_about_me_defaults_empty():
     profile = parse_profile(SAMPLE_PAGE)
     assert profile.about_me == ""
