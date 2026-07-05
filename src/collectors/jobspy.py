@@ -1,7 +1,7 @@
 import pandas as pd
 from jobspy import scrape_jobs
 
-from .models import Job, Profile
+from ..models import Job, Profile
 
 
 def _na(val) -> bool:

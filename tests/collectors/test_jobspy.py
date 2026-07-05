@@ -4,7 +4,7 @@ from unittest.mock import call, patch
 import pandas as pd
 import pytest
 
-from src.collector import _row_to_job, collect_jobs
+from src.collectors.jobspy import _row_to_job, collect_jobs
 from src.models import Profile
 
 
@@ -91,7 +91,7 @@ def _make_df(*urls: str) -> pd.DataFrame:
 def test_collect_jobs_calls_scrape_for_each_keyword():
     df1 = _make_df("https://example.com/1")
     df2 = _make_df("https://example.com/2")
-    with patch("src.collector.scrape_jobs", side_effect=[df1, df2]) as mock_scrape:
+    with patch("src.collectors.jobspy.scrape_jobs", side_effect=[df1, df2]) as mock_scrape:
         jobs = collect_jobs(_PROFILE)
     assert mock_scrape.call_count == 2
     assert mock_scrape.call_args_list[0][1]["search_term"] == "React developer"
@@ -103,7 +103,7 @@ def test_collect_jobs_deduplicates_across_keywords():
     shared_url = "https://example.com/shared"
     df1 = _make_df(shared_url)
     df2 = _make_df(shared_url, "https://example.com/unique")
-    with patch("src.collector.scrape_jobs", side_effect=[df1, df2]):
+    with patch("src.collectors.jobspy.scrape_jobs", side_effect=[df1, df2]):
         jobs = collect_jobs(_PROFILE)
     urls = [j.url for j in jobs]
     assert urls.count(shared_url) == 1
@@ -112,7 +112,7 @@ def test_collect_jobs_deduplicates_across_keywords():
 
 def test_collect_jobs_empty_keywords_returns_empty():
     profile = _PROFILE.model_copy(update={"keywords": []})
-    with patch("src.collector.scrape_jobs") as mock_scrape:
+    with patch("src.collectors.jobspy.scrape_jobs") as mock_scrape:
         jobs = collect_jobs(profile)
     mock_scrape.assert_not_called()
     assert jobs == []

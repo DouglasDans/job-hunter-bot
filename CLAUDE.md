@@ -10,6 +10,7 @@ Script Python de execução única que agrega vagas de múltiplas fontes, filtra
 
 - Python 3.12+ com `uv` para gerenciamento de dependências
 - `jobspy` — coleta multi-fonte (Indeed principal, LinkedIn guest secundário)
+- `httpx` — cliente HTTP do coletor Gupy (API pública, sem autenticação)
 - `notion-client` — SDK oficial Python para leitura do perfil e escrita no DB Vagas
 - `pydantic` — validação e parsing de todos os dados do pipeline
 - `python-dotenv` — tokens via `.env`
@@ -41,7 +42,9 @@ job-hunter-bot/
 ├── src/
 │   ├── main.py           # entry point — orquestra as fases em sequência
 │   ├── config.py         # lê página de perfil do Notion → Profile (props + corpo da página)
-│   ├── collector.py      # wrapper JobSpy → list[Job]
+│   ├── collectors/
+│   │   ├── jobspy.py     # wrapper JobSpy (Indeed/LinkedIn) → list[Job]
+│   │   └── gupy.py       # API pública Gupy → list[Job]
 │   ├── scorer.py         # keyword matching → Job com score
 │   ├── dedup.py          # busca URLs existentes no DB Vagas
 │   ├── researcher.py     # pesquisa web (ddgs) → contexto sobre a empresa
@@ -75,8 +78,12 @@ Fase 0: Lê perfil/config da página do Notion
                    hours_old, about_me)
          → about_me: corpo livre da página de Perfil no Notion (texto corrido)
   ↓
-Fase 1: Coleta vagas via JobSpy
+Fase 1: Coleta vagas via JobSpy + Gupy
          → Indeed (principal) + LinkedIn guest (secundário, rate limit na pág. 10)
+         → Gupy: API pública sem autenticação, uma chamada por keyword; resultados vêm
+           ordenados por data desc, então o filtro de hours_old para na primeira vaga
+           fora da janela em vez de paginar; falha de rede numa keyword loga WARNING e
+           não derruba as outras fontes
   ↓
 Fase 2: Dedup — busca URLs normalizadas no DB Vagas, descarta existentes
   ↓
@@ -244,6 +251,18 @@ nunca influencia o veto, que já aconteceu antes dela ser calculada.
 
 **systemd --user, ~2x/dia** — frequência baixa mantém coleta discreta e reflete que vagas não mudam de hora em hora.
 
+**`src/collectors/` como pacote** — ao adicionar a Gupy (Fase 2), `collector.py` foi renomeado para
+`collectors/jobspy.py` para não ter um padrão solto convivendo com um pacote; a Fase 3 (InHire) usa
+o mesmo pacote, evitando decidir a estrutura de novo a cada fonte nova.
+
+**Gupy via `httpx`, API pública sem chave** — `GET employability-portal.gupy.io/api/v1/jobs?jobName=<termo>`
+não exige autenticação. Resultados vêm ordenados por `publishedDate` desc, então o filtro de
+`hours_old` para de processar a página assim que encontra a primeira vaga fora da janela, sem
+precisar paginar `offset` além da primeira página na maioria dos casos. `careerPageName` é usado
+como nome da empresa — validado com múltiplas keywords reais, sempre nome real (não slogan de
+marketing). `httpx` virou dependência direta (antes só transitiva via `notion-client`) por ser mais
+explícito que depender de uma lib que não está no `pyproject.toml`.
+
 ## Roadmap — stories
 
 | # | Story | Status |
@@ -260,9 +279,8 @@ nunca influencia o veto, que já aconteceu antes dela ser calculada.
 
 Melhorias pós-story-9 (assertividade e cobertura do funil) estão detalhadas em
 `docs/improvement-plan.md`. Fase 1 (scorer/config/models — stack_groups, veto de modalidade e
-senioridade, matcher word-boundary) está implementada e testada; falta remover a propriedade
-`required_stack` do Notion e rodar o pipeline real para calibrar antes das Fases 2–4 (novos
-coletores e distribuição).
+senioridade, matcher word-boundary) e Fase 2 (coletor Gupy) estão implementadas e testadas. Falta
+a Fase 3 (coletor InHire + Google Jobs via JobSpy) e a Fase 4 (distribuição no GitHub).
 
 ## Definition of Done do projeto
 
