@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-Script Python de execução única que agrega vagas de múltiplas fontes, filtra por keyword matching, pesquisa informações externas sobre empresas e enriquece com IA (Anthropic Haiku) as vagas relevantes, gravando o resultado no Notion (DB "Vagas"). Disparado por systemd timer ~2x/dia — não daemon, sem estado em memória entre execuções.
+Script Python de execução única que agrega vagas de múltiplas fontes, filtra por keyword matching, pesquisa informações externas sobre empresas e enriquece com IA (Anthropic Haiku) as vagas relevantes, gravando o resultado no Notion (DB "Vagas"). Disparado por systemd timer toda sexta-feira às 20h — não daemon, sem estado em memória entre execuções.
 
 ## Stack
 
@@ -267,7 +267,11 @@ nunca influencia o veto, que já aconteceu antes dela ser calculada.
 
 **URL normalizada no dedup** — URLs do LinkedIn variam por query params. Strip de parâmetros antes de comparar.
 
-**systemd --user, ~2x/dia** — frequência baixa mantém coleta discreta e reflete que vagas não mudam de hora em hora.
+**systemd --user, semanal (sexta 20h)** — `OnCalendar=Fri *-*-* 20:00:00` em `systemd/job-hunter.timer`.
+Frequência baixa mantém coleta discreta e reflete que vagas não mudam de hora em hora; sexta à noite
+dá uma leva fresca de vagas pra revisar no fim de semana. `WorkingDirectory=%h/job-hunter-bot` assume
+o clone na home do usuário — ajustar se o clone estiver em outro lugar. `Persistent=true` no timer
+roda a execução perdida no próximo boot se a máquina estiver desligada no horário agendado.
 
 **`src/collectors/` como pacote** — ao adicionar a Gupy (Fase 2), `collector.py` foi renomeado para
 `collectors/jobspy.py` para não ter um padrão solto convivendo com um pacote; a Fase 3 (InHire) usa
@@ -330,7 +334,7 @@ Vaga do Google sem `date_posted` (parse falhou) não é descartada, mesma filoso
 | 3   | Dedup contra DB Vagas                                     | ✅       |
 | 4   | Enriquecimento via Ollama                                 | ✅       |
 | 5   | Push pro Notion DB Vagas                                  | ✅       |
-| 6   | Orquestração systemd                                      | pendente |
+| 6   | Orquestração systemd                                      | ✅       |
 | 7   | Haiku primary, Ollama runtime fallback                    | ✅       |
 | 8   | Perfil pessoal via corpo da página do Notion (`about_me`) | ✅       |
 | 9   | Pesquisa de empresa + análise de fit + match_score real   | ✅       |

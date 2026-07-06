@@ -1,0 +1,10 @@
+[Unit]
+Description=Job Hunter Bot — aggregate, score and enrich job postings
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/job-hunter-bot
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=uv run python -m src.main
