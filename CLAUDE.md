@@ -341,8 +341,9 @@ Vaga do Google sem `date_posted` (parse falhou) não é descartada, mesma filoso
 
 Melhorias pós-story-9 (assertividade e cobertura do funil) estão detalhadas em
 `docs/improvement-plan.md`. Fase 1 (scorer/config/models — stack_groups, veto de modalidade e
-senioridade, matcher word-boundary), Fase 2 (coletor Gupy) e Fase 3 (coletor InHire + Google Jobs
-via JobSpy) estão implementadas e testadas. Falta a Fase 4 (distribuição no GitHub).
+senioridade, matcher word-boundary), Fase 2 (coletor Gupy), Fase 3 (coletor InHire + Google Jobs
+via JobSpy) e Fase 4 (README, `docs/notion-setup.md`, LICENSE MIT, metadata no `pyproject.toml`,
+repositório publicado em github.com/DouglasDans/job-hunter-bot) estão implementadas.
 
 ## Definition of Done do projeto
 
