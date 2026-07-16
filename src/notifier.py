@@ -96,6 +96,11 @@ def _line_to_block(line: str) -> dict | None:
             "object": "block", "type": "heading_3",
             "heading_3": {"rich_text": _parse_inline(line[4:].strip())},
         }
+    if line.startswith("> "):
+        return {
+            "object": "block", "type": "quote",
+            "quote": {"rich_text": _parse_inline(line[2:].strip())},
+        }
     if re.match(r"^[-*] ", line):
         return {
             "object": "block", "type": "bulleted_list_item",

@@ -212,6 +212,26 @@ def test_markdown_to_blocks_divider():
     assert blocks[0]["type"] == "divider"
 
 
+def test_markdown_to_blocks_quote():
+    blocks = _text_to_blocks('> "Oi Maria, vi a vaga de Fullstack"')
+    assert blocks[0]["type"] == "quote"
+    content = blocks[0]["quote"]["rich_text"][0]["text"]["content"]
+    assert content == '"Oi Maria, vi a vaga de Fullstack"'
+
+
+def test_markdown_to_blocks_quote_with_bold():
+    blocks = _text_to_blocks("> valide **antes** de investir tempo")
+    rich = blocks[0]["quote"]["rich_text"]
+    bold = [p["text"]["content"] for p in rich if p["annotations"]["bold"]]
+    assert bold == ["antes"]
+
+
+def test_markdown_to_blocks_quote_no_literal_marker():
+    blocks = _text_to_blocks("> citação")
+    all_text = "".join(p["text"]["content"] for p in blocks[0]["quote"]["rich_text"])
+    assert ">" not in all_text
+
+
 def test_markdown_to_blocks_splits_on_newline():
     blocks = _text_to_blocks("First\nSecond\nThird")
     assert len(blocks) == 3
