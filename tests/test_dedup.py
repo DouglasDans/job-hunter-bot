@@ -1,9 +1,9 @@
-from src.dedup import filter_new_jobs, normalize_url
+from src.dedup import filter_new_jobs, normalize_company_title, normalize_url
 from src.models import Job
 
 
-def make_job(url: str) -> Job:
-    return Job(title="Dev", company="Co", url=url, source="indeed")
+def make_job(url: str, title: str = "Dev", company: str = "Co") -> Job:
+    return Job(title=title, company=company, url=url, source="indeed")
 
 
 def test_normalize_linkedin_strips_tracking():
@@ -44,9 +44,73 @@ def test_filter_normalizes_before_comparison():
 
 
 def test_filter_empty_existing():
-    jobs = [make_job("https://example.com/1"), make_job("https://example.com/2")]
+    jobs = [
+        make_job("https://example.com/1", title="Dev A"),
+        make_job("https://example.com/2", title="Dev B"),
+    ]
     assert len(filter_new_jobs(jobs, set())) == 2
 
 
 def test_filter_empty_jobs():
     assert filter_new_jobs([], {"https://example.com/1"}) == []
+
+
+def test_normalize_company_title_lowercases_and_strips_punctuation():
+    key = normalize_company_title("Compass UOL", "Node.js Full-Stack Developer")
+    assert key == "compass uol|node js full stack developer"
+
+
+def test_normalize_company_title_collapses_whitespace():
+    key = normalize_company_title("  Acme   Corp ", "Dev  Pleno")
+    assert key == "acme corp|dev pleno"
+
+
+def test_normalize_company_title_empty_company_returns_empty():
+    assert normalize_company_title("", "Dev") == ""
+    assert normalize_company_title("Acme", "") == ""
+
+
+def test_filter_removes_same_company_title_with_different_url():
+    existing_keys = {normalize_company_title("Compass UOL", "Node.js Full-Stack Developer")}
+    jobs = [
+        make_job(
+            "https://br.indeed.com/viewjob?jk=novo",
+            title="Node.js Full-Stack Developer",
+            company="Compass UOL",
+        )
+    ]
+    assert filter_new_jobs(jobs, set(), existing_keys) == []
+
+
+def test_filter_keeps_same_title_different_company():
+    existing_keys = {normalize_company_title("Compass UOL", "Node.js Developer")}
+    jobs = [make_job("https://example.com/1", title="Node.js Developer", company="Outra Empresa")]
+    assert len(filter_new_jobs(jobs, set(), existing_keys)) == 1
+
+
+def test_filter_dedupes_within_batch_by_url():
+    jobs = [
+        make_job("https://example.com/1?refId=a", title="Dev A", company="X"),
+        make_job("https://example.com/1?refId=b", title="Dev B", company="Y"),
+    ]
+    assert len(filter_new_jobs(jobs, set())) == 1
+
+
+def test_filter_dedupes_within_batch_by_company_title():
+    jobs = [
+        make_job("https://gupy.io/vaga/1", title="Fullstack Pleno", company="Compass UOL"),
+        make_job(
+            "https://br.indeed.com/viewjob?jk=x", title="Fullstack Pleno", company="Compass UOL"
+        ),
+    ]
+    result = filter_new_jobs(jobs, set())
+    assert len(result) == 1
+    assert result[0].url == "https://gupy.io/vaga/1"
+
+
+def test_filter_missing_company_does_not_match_other_missing_company():
+    jobs = [
+        make_job("https://example.com/1", title="Dev", company=""),
+        make_job("https://example.com/2", title="Dev", company=""),
+    ]
+    assert len(filter_new_jobs(jobs, set())) == 2

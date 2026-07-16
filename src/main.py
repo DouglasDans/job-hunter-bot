@@ -8,7 +8,7 @@ from .collectors.gupy import collect_gupy_jobs
 from .collectors.inhire import collect_inhire_jobs
 from .collectors.jobspy import collect_jobs
 from .config import load_profile
-from .dedup import fetch_existing_urls, filter_new_jobs
+from .dedup import fetch_existing_index, filter_new_jobs
 from .enricher import enrich_job
 from .llm import create_llm_client
 from .notifier import push_job
@@ -27,8 +27,10 @@ def main() -> None:
     jobs = collect_jobs(profile) + collect_gupy_jobs(profile) + collect_inhire_jobs(profile)
     print(f"Coletadas: {len(jobs)} vagas")
 
-    existing_urls = fetch_existing_urls(client, os.environ["NOTION_VAGAS_DATABASE_ID"])
-    new_jobs = filter_new_jobs(jobs, existing_urls)
+    existing_urls, existing_keys = fetch_existing_index(
+        client, os.environ["NOTION_VAGAS_DATABASE_ID"]
+    )
+    new_jobs = filter_new_jobs(jobs, existing_urls, existing_keys)
     print(f"Novas: {len(new_jobs)} (descartadas {len(jobs) - len(new_jobs)} duplicatas)")
 
     scored = score_jobs(new_jobs, profile)

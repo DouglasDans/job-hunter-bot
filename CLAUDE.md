@@ -95,7 +95,9 @@ Fase 1: Coleta vagas via JobSpy + Gupy + InHire
            traz data nem descrição); falha na lista ou no detalhe de uma vaga loga
            WARNING e não derruba as outras vagas/tenants
   ↓
-Fase 2: Dedup — busca URLs normalizadas no DB Vagas, descarta existentes
+Fase 2: Dedup — busca URLs normalizadas E chaves empresa|título no DB Vagas;
+         descarta existentes e também duplicatas dentro do próprio lote coletado
+         (mesma vaga vinda de duas fontes, ex. Gupy + Indeed, tem URLs diferentes)
   ↓
 Fase 3: Score por keyword matching (Python puro, sem IA)
          → stack_groups: candidato multi-stack (ex.: Frontend | Backend). Um grupo é
@@ -273,7 +275,12 @@ Notion. Blocos são paginados em batches de 100 (limite da API).
 
 **notion-client v3: `databases.query()` foi removido** — query agora exige dois calls: `databases.retrieve()` para obter o `data_source_id`, depois `data_sources.query(data_source_id)`. O `.env` continua usando `database_id` (visível na URL do Notion); a resolução para `data_source_id` é feita internamente em `load_profile`.
 
-**URL normalizada no dedup** — URLs do LinkedIn variam por query params. Strip de parâmetros antes de comparar.
+**Dedup em dois critérios: URL normalizada + empresa|título normalizados** — URLs do LinkedIn
+variam por query params (strip antes de comparar), mas a mesma vaga publicada em duas fontes
+(caso real: Compass UOL via Gupy e Indeed) tem URLs legitimamente diferentes. Segundo critério:
+`empresa|título` em lowercase sem pontuação. O filtro também deduplica dentro do próprio lote da
+coleta (não só contra o DB) — antes, duplicatas que chegavam juntas na mesma execução passavam
+ambas. Vaga sem empresa ou sem título não gera chave (não deduplica em cima de campo vazio).
 
 **systemd --user, semanal (sexta 20h)** — `OnCalendar=Fri *-*-* 20:00:00` em `systemd/job-hunter.timer`.
 Frequência baixa mantém coleta discreta e reflete que vagas não mudam de hora em hora; sexta à noite
