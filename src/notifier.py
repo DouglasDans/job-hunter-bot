@@ -118,8 +118,22 @@ def _line_to_block(line: str) -> dict | None:
     }
 
 
+_NESTABLE = ("bulleted_list_item", "numbered_list_item")
+
+
 def _text_to_blocks(text: str) -> list[dict]:
-    blocks = [b for line in text.split("\n") if (b := _line_to_block(line))]
+    blocks: list[dict] = []
+    for raw in text.split("\n"):
+        stripped = raw.lstrip(" ")
+        block = _line_to_block(stripped)
+        if block is None:
+            continue
+        indent = len(raw) - len(stripped)
+        parent = blocks[-1] if blocks else None
+        if indent >= 2 and parent and parent["type"] in _NESTABLE:
+            parent[parent["type"]].setdefault("children", []).append(block)
+        else:
+            blocks.append(block)
     return blocks or [{
         "object": "block", "type": "paragraph",
         "paragraph": {"rich_text": _parse_inline(text)},

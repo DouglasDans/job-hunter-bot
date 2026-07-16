@@ -255,7 +255,15 @@ nunca influencia o veto, que já aconteceu antes dela ser calculada.
 
 **Prefill `{` no Anthropic** — quando `response_schema` é fornecido, o `AnthropicClient` usa prefill de assistant com `{` para garantir JSON puro sem markdown wrapper. O `{` é re-prefixado na resposta antes do parse.
 
-**Markdown → blocos Notion** — o LLM gera Markdown em cada campo. O `notifier` converte linha a linha: `## heading` → `heading_2`, `- item` → `bulleted_list_item`, `1. item` → `numbered_list_item`, `**bold**` → annotation bold, `---` → divider. Blocos são paginados em batches de 100 (limite da API).
+**Markdown → blocos Notion** — o LLM gera Markdown em cada campo. O `notifier` converte linha a
+linha: `## heading` → `heading_2`, `- item` → `bulleted_list_item`, `1. item` →
+`numbered_list_item`, `> citação` → `quote`, `---` → divider. Inline, um tokenizer próprio (sem
+lib externa — o input é o output do nosso prompt, conjunto fechado de construções) trata `**bold**`,
+`*italic*` e `` `code` `` com aninhamento (itálico dentro de bold); code span é literal por dentro;
+marcador sem par é removido silenciosamente em vez de aparecer cru na página. Linha indentada
+(≥2 espaços) logo após um item de lista vira `children` desse item (um nível só) — isso também
+impede que sub-conteúdo interrompa a sequência de `numbered_list_item` e resete a numeração do
+Notion. Blocos são paginados em batches de 100 (limite da API).
 
 **Abstração LLMClient** — Ollama local por padrão (gratuito). Anthropic Haiku quando configurado. Custo estimado com Haiku: ~$4/mês nesse volume.
 

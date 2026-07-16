@@ -232,6 +232,50 @@ def test_markdown_to_blocks_quote_no_literal_marker():
     assert ">" not in all_text
 
 
+def test_nested_bullet_becomes_child_of_numbered_item():
+    blocks = _text_to_blocks("1. Abordagem direta\n   - Procure no LinkedIn\n   - Mensagem curta")
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "numbered_list_item"
+    children = blocks[0]["numbered_list_item"]["children"]
+    assert [c["type"] for c in children] == ["bulleted_list_item", "bulleted_list_item"]
+    assert (
+        children[0]["bulleted_list_item"]["rich_text"][0]["text"]["content"]
+        == "Procure no LinkedIn"
+    )
+
+
+def test_nested_content_does_not_break_numbering_sequence():
+    md = "1. Primeiro\n2. Segundo\n   - detalhe do segundo\n3. Terceiro"
+    blocks = _text_to_blocks(md)
+    assert [b["type"] for b in blocks] == ["numbered_list_item"] * 3
+
+
+def test_nested_quote_becomes_child_of_list_item():
+    md = '- Mensagem curta:\n  > "Oi Maria, vi a vaga"'
+    blocks = _text_to_blocks(md)
+    assert len(blocks) == 1
+    children = blocks[0]["bulleted_list_item"]["children"]
+    assert children[0]["type"] == "quote"
+
+
+def test_indented_line_without_list_parent_is_top_level():
+    blocks = _text_to_blocks("parágrafo comum\n   - item indentado sem pai de lista")
+    assert len(blocks) == 2
+    assert blocks[1]["type"] == "bulleted_list_item"
+    assert "children" not in blocks[1]["bulleted_list_item"]
+
+
+def test_nested_four_space_indent_works():
+    blocks = _text_to_blocks("- pai\n    - filho com 4 espaços")
+    assert len(blocks) == 1
+    assert blocks[0]["bulleted_list_item"]["children"][0]["type"] == "bulleted_list_item"
+
+
+def test_top_level_items_have_no_children_key_by_default():
+    blocks = _text_to_blocks("- solto")
+    assert "children" not in blocks[0]["bulleted_list_item"]
+
+
 def test_markdown_to_blocks_splits_on_newline():
     blocks = _text_to_blocks("First\nSecond\nThird")
     assert len(blocks) == 3
