@@ -35,17 +35,49 @@ def _salary(enriched: EnrichedJob) -> str:
     return ""
 
 
-def _parse_inline(text: str) -> list[dict]:
+def _token(content: str, *, bold: bool = False, italic: bool = False, code: bool = False) -> dict:
+    return {
+        "type": "text",
+        "text": {"content": content[:_MAX_TEXT]},
+        "annotations": {"bold": bold, "italic": italic, "code": code},
+    }
+
+
+def _strip_stray_markers(text: str) -> str:
+    # marcador sem par nunca deve aparecer literal no Notion
+    return text.replace("**", "").replace("*", "").replace("`", "")
+
+
+def _parse_italic(text: str, *, bold: bool) -> list[dict]:
     parts = []
-    for i, segment in enumerate(re.split(r"\*\*(.*?)\*\*", text)):
+    for i, segment in enumerate(re.split(r"\*([^*]+)\*", text)):
+        if i % 2:
+            parts.append(_token(segment, bold=bold, italic=True))
+        else:
+            segment = _strip_stray_markers(segment)
+            if segment:
+                parts.append(_token(segment, bold=bold))
+    return parts
+
+
+def _parse_emphasis(text: str) -> list[dict]:
+    parts = []
+    for i, segment in enumerate(re.split(r"\*\*(.+?)\*\*", text)):
+        if segment:
+            parts.extend(_parse_italic(segment, bold=bool(i % 2)))
+    return parts
+
+
+def _parse_inline(text: str) -> list[dict]:
+    parts: list[dict] = []
+    for i, segment in enumerate(re.split(r"`([^`]+)`", text)):
         if not segment:
             continue
-        parts.append({
-            "type": "text",
-            "text": {"content": segment[:_MAX_TEXT]},
-            "annotations": {"bold": bool(i % 2)},
-        })
-    return parts or [{"type": "text", "text": {"content": text[:_MAX_TEXT]}}]
+        if i % 2:
+            parts.append(_token(segment, code=True))
+        else:
+            parts.extend(_parse_emphasis(segment))
+    return parts or [_token("")]
 
 
 def _line_to_block(line: str) -> dict | None:

@@ -96,6 +96,88 @@ def test_parse_inline_empty_string():
     assert len(parts) >= 1
 
 
+def test_parse_inline_italic():
+    parts = _parse_inline("*Resposta esperada*: detalhe")
+    texts = [(p["text"]["content"], p["annotations"]["italic"]) for p in parts]
+    assert ("Resposta esperada", True) in texts
+    assert (": detalhe", False) in texts
+
+
+def test_parse_inline_italic_quoted_sentence():
+    parts = _parse_inline('*"Tenho experiência fullstack"*')
+    italic = [p["text"]["content"] for p in parts if p["annotations"]["italic"]]
+    assert italic == ['"Tenho experiência fullstack"']
+
+
+def test_parse_inline_inline_code():
+    parts = _parse_inline("rode `npm test` antes")
+    code = [p["text"]["content"] for p in parts if p["annotations"]["code"]]
+    assert code == ["npm test"]
+    plain = [p["text"]["content"] for p in parts if not p["annotations"]["code"]]
+    assert "rode " in plain
+    assert " antes" in plain
+
+
+def test_parse_inline_code_content_is_literal():
+    parts = _parse_inline("`**não é bold**`")
+    assert len(parts) == 1
+    assert parts[0]["annotations"]["code"] is True
+    assert parts[0]["text"]["content"] == "**não é bold**"
+    assert parts[0]["annotations"]["bold"] is False
+
+
+def test_parse_inline_italic_inside_bold():
+    parts = _parse_inline("**bold com *italic* dentro**")
+    both = [
+        p["text"]["content"]
+        for p in parts
+        if p["annotations"]["bold"] and p["annotations"]["italic"]
+    ]
+    assert both == ["italic"]
+    bold_only = [
+        p["text"]["content"]
+        for p in parts
+        if p["annotations"]["bold"] and not p["annotations"]["italic"]
+    ]
+    assert "bold com " in bold_only
+    assert " dentro" in bold_only
+
+
+def test_parse_inline_unmatched_bold_marker_dropped():
+    parts = _parse_inline("**Recomendação: aplicar")
+    all_text = "".join(p["text"]["content"] for p in parts)
+    assert all_text == "Recomendação: aplicar"
+    assert all(not p["annotations"]["bold"] for p in parts)
+
+
+def test_parse_inline_unmatched_italic_marker_dropped():
+    parts = _parse_inline("texto com *marcador órfão")
+    all_text = "".join(p["text"]["content"] for p in parts)
+    assert all_text == "texto com marcador órfão"
+
+
+def test_parse_inline_unmatched_backtick_dropped():
+    parts = _parse_inline("texto com ` órfão")
+    all_text = "".join(p["text"]["content"] for p in parts)
+    assert all_text == "texto com  órfão"
+    assert all(not p["annotations"]["code"] for p in parts)
+
+
+def test_parse_inline_bold_and_italic_same_line():
+    parts = _parse_inline("**Prioridade baixa** e *se tiver tempo*")
+    bold = [p["text"]["content"] for p in parts if p["annotations"]["bold"]]
+    italic = [p["text"]["content"] for p in parts if p["annotations"]["italic"]]
+    assert bold == ["Prioridade baixa"]
+    assert italic == ["se tiver tempo"]
+
+
+def test_parse_inline_triple_asterisk_degrades_without_literals():
+    parts = _parse_inline("***ênfase máxima***")
+    all_text = "".join(p["text"]["content"] for p in parts)
+    assert all_text == "ênfase máxima"
+    assert "*" not in all_text
+
+
 def test_markdown_to_blocks_plain_paragraph():
     blocks = _text_to_blocks("Hello world")
     assert len(blocks) == 1
