@@ -113,6 +113,18 @@ def test_build_system_prompt_without_about_me_still_works():
     assert "TypeScript" in prompt
 
 
+def test_build_system_prompt_has_markdown_format_contract():
+    prompt = build_system_prompt(PROFILE)
+    assert "mesma linha" in prompt
+    assert "> " in prompt
+    assert "2 espaços" in prompt
+
+
+def test_build_system_prompt_requires_sequential_numbering():
+    prompt = build_system_prompt(PROFILE)
+    assert "sequencialmente" in prompt
+
+
 def test_build_user_prompt_contains_job_title():
     prompt = build_user_prompt(SCORED_JOB)
     assert "Frontend Engineer" in prompt

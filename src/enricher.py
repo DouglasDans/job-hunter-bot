@@ -26,7 +26,13 @@ def build_system_prompt(profile: Profile) -> str:
         "",
         "Use o perfil detalhado do candidato para personalizar cada campo da análise.",
         "Plano de ação e o que estudar devem ser específicos para este candidato, não genéricos.",
-        "Use Markdown: **negrito** para destaques, - para listas, ## para subtítulos.",
+        "Regras de formatação Markdown (obrigatórias):",
+        "- Use apenas: **negrito**, *itálico*, `código`, listas com - ou 1.,"
+        " ## subtítulos, > citações e --- como divisor.",
+        "- Feche **negrito** e *itálico* sempre na mesma linha em que abriu.",
+        "- Numere listas sequencialmente (1., 2., 3.) — nunca repita 1.",
+        "- Sub-itens de uma lista: indente com 2 espaços sob o item pai.",
+        "- Citações (ex.: mensagem sugerida de LinkedIn) em linha própria começando com > .",
         "Use emojis conforme convenção: ✅ para cada sinal positivo de cultura,"
         " 🚩 para red flags críticos, 🟠 para red flags secundários.",
         "",
