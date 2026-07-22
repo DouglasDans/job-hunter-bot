@@ -30,9 +30,12 @@ def _parse_published_at(value) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _detail_to_job(detail: dict, url: str, published_at: datetime | None) -> Job:
@@ -91,7 +94,15 @@ def collect_inhire_jobs(profile: Profile) -> list[Job]:
                 continue
 
             detail = detail_response.json()
-            published_at = _parse_published_at(detail.get("publishedAt"))
+            raw_published_at = detail.get("publishedAt")
+            published_at = _parse_published_at(raw_published_at)
+            if raw_published_at and published_at is None:
+                logger.warning(
+                    "InHire: could not parse publishedAt %r for job %r (tenant %r)",
+                    raw_published_at,
+                    job_id,
+                    tenant,
+                )
             if published_at is not None and published_at < cutoff:
                 continue
 

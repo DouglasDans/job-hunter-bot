@@ -52,7 +52,7 @@ def make_response(items: list[dict]) -> httpx.Response:
 
 
 def test_row_to_job_maps_all_fields():
-    job = _row_to_job(make_item())
+    job = _row_to_job(make_item(), None)
     assert job is not None
     assert job.title == "Desenvolvedor Java Pleno"
     assert job.company == "Acme Corp"
@@ -66,17 +66,28 @@ def test_row_to_job_maps_all_fields():
 
 
 def test_row_to_job_location_uses_city_state_when_present():
-    job = _row_to_job(make_item(city="São Paulo", state="São Paulo", country="Brasil"))
+    job = _row_to_job(make_item(city="São Paulo", state="São Paulo", country="Brasil"), None)
     assert job.location == "São Paulo, São Paulo"
 
 
 def test_row_to_job_location_falls_back_to_country_when_no_city():
-    job = _row_to_job(make_item(city="", state="", country="Brasil"))
+    job = _row_to_job(make_item(city="", state="", country="Brasil"), None)
     assert job.location == "Brasil"
 
 
 def test_row_to_job_missing_url_returns_none():
-    assert _row_to_job(make_item(jobUrl="")) is None
+    assert _row_to_job(make_item(jobUrl=""), None) is None
+
+
+def test_row_to_job_maps_published_at_to_date_posted():
+    published_at = datetime(2026, 7, 21, 10, 0, tzinfo=UTC)
+    job = _row_to_job(make_item(), published_at)
+    assert job.date_posted == published_at.date()
+
+
+def test_row_to_job_none_published_at_results_in_none_date_posted():
+    job = _row_to_job(make_item(), None)
+    assert job.date_posted is None
 
 
 def test_collect_gupy_jobs_filters_by_hours_old():
@@ -128,3 +139,64 @@ def test_collect_gupy_jobs_continues_on_http_error(caplog):
 def test_collect_gupy_jobs_no_keywords_returns_empty():
     profile = make_profile(keywords=[])
     assert collect_gupy_jobs(profile) == []
+
+
+def test_collect_gupy_jobs_date_only_published_date_within_window_is_kept():
+    profile = make_profile(hours_old=48)
+    today = datetime.now(UTC).date()
+    item = make_item(
+        jobUrl="https://acme.gupy.io/job/date-only",
+        publishedDate=today.isoformat(),
+    )
+    with patch("src.collectors.gupy.httpx.get", return_value=make_response([item])):
+        jobs = collect_gupy_jobs(profile)
+
+    assert len(jobs) == 1
+    assert jobs[0].date_posted == today
+
+
+def test_collect_gupy_jobs_date_only_published_date_outside_window_is_discarded():
+    profile = make_profile(hours_old=1)
+    old_date = (datetime.now(UTC) - timedelta(days=5)).date()
+    item = make_item(
+        jobUrl="https://acme.gupy.io/job/old-date-only",
+        publishedDate=old_date.isoformat(),
+    )
+    with patch("src.collectors.gupy.httpx.get", return_value=make_response([item])):
+        jobs = collect_gupy_jobs(profile)
+
+    assert jobs == []
+
+
+def test_collect_gupy_jobs_malformed_published_date_logs_warning_and_keeps_job(caplog):
+    profile = make_profile()
+    item = make_item(
+        jobUrl="https://acme.gupy.io/job/malformed",
+        publishedDate="not-a-date",
+    )
+    with (
+        patch("src.collectors.gupy.httpx.get", return_value=make_response([item])),
+        caplog.at_level(logging.WARNING),
+    ):
+        jobs = collect_gupy_jobs(profile)
+
+    assert len(jobs) == 1
+    assert jobs[0].date_posted is None
+    assert "not-a-date" in caplog.text
+
+
+def test_collect_gupy_jobs_malformed_published_date_does_not_stop_processing_older_items():
+    profile = make_profile(hours_old=1)
+    malformed = make_item(
+        jobUrl="https://acme.gupy.io/job/malformed",
+        publishedDate="not-a-date",
+    )
+    old = make_item(
+        jobUrl="https://acme.gupy.io/job/old",
+        publishedDate=_iso(datetime.now(UTC) - timedelta(hours=48)),
+    )
+    with patch("src.collectors.gupy.httpx.get", return_value=make_response([malformed, old])):
+        jobs = collect_gupy_jobs(profile)
+
+    urls = [j.url for j in jobs]
+    assert urls == ["https://acme.gupy.io/job/malformed"]

@@ -328,16 +328,45 @@ def test_collect_inhire_jobs_keeps_job_with_missing_published_at():
     assert jobs[0].date_posted is None
 
 
-def test_collect_inhire_jobs_keeps_job_with_malformed_published_at():
+def test_collect_inhire_jobs_keeps_job_with_malformed_published_at(caplog):
     profile = make_profile(hours_old=24)
     detail = make_detail(publishedAt="not-a-date")
+    with (
+        patch(
+            "src.collectors.inhire.httpx.get",
+            side_effect=_mock_get({"jobsPage": [make_list_item()]}, {"job-1": detail}),
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        jobs = collect_inhire_jobs(profile)
+    assert len(jobs) == 1
+    assert jobs[0].date_posted is None
+    assert "not-a-date" in caplog.text
+
+
+def test_collect_inhire_jobs_date_only_published_at_within_window_is_kept():
+    profile = make_profile(hours_old=48)
+    today = datetime.now(UTC).date()
+    detail = make_detail(publishedAt=today.isoformat())
     with patch(
         "src.collectors.inhire.httpx.get",
         side_effect=_mock_get({"jobsPage": [make_list_item()]}, {"job-1": detail}),
     ):
         jobs = collect_inhire_jobs(profile)
     assert len(jobs) == 1
-    assert jobs[0].date_posted is None
+    assert jobs[0].date_posted == today
+
+
+def test_collect_inhire_jobs_date_only_published_at_outside_window_is_discarded():
+    profile = make_profile(hours_old=1)
+    old_date = (datetime.now(UTC) - timedelta(days=5)).date()
+    detail = make_detail(publishedAt=old_date.isoformat())
+    with patch(
+        "src.collectors.inhire.httpx.get",
+        side_effect=_mock_get({"jobsPage": [make_list_item()]}, {"job-1": detail}),
+    ):
+        jobs = collect_inhire_jobs(profile)
+    assert jobs == []
 
 
 def test_collect_inhire_jobs_maps_all_fields():
