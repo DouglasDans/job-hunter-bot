@@ -11,7 +11,7 @@ class AnthropicClient(LLMClient):
     def complete(self, system: str, user: str) -> str:
         message = self._client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
